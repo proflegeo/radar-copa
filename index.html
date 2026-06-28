@@ -286,6 +286,12 @@
       transition: opacity 0.2s; z-index: 10; white-space: nowrap;
     }
     .drag-hint.show { opacity: 1; }
+    .inline-editor {
+      position: absolute; transform: translate(-50%, -50%); z-index: 20;
+      width: 130px; padding: 4px 6px; font-size: 13px; text-align: center;
+      border: 2px solid var(--g500); border-radius: 6px; background: #fff;
+      box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    }
     #radarChart { display: none; width: 100% !important; height: 100% !important; }
     .awaiting {
       position: absolute; inset: 0; display: flex; flex-direction: column;
@@ -612,7 +618,7 @@
 
   <!-- CHART -->
   <div id="chartWrap">
-    <div class="drag-hint" id="dragHint">✋ Arraste um rótulo sobre outro para trocá-los</div>
+    <div class="drag-hint" id="dragHint">✋ Arraste um rótulo para reordenar · duplo-clique para editar</div>
     <div class="awaiting" id="waiting">
       <div class="awaiting-icon">🌐</div>
       <h2>Copa da Geografia 2026</h2>
@@ -1695,10 +1701,47 @@ function coordsCanvas(ev) {
   };
 }
 
+// Editor flutuante para editar o rótulo direto no gráfico
+function abrirEditorInline(idx, pos) {
+  const wrap = document.getElementById('chartWrap');
+  document.querySelectorAll('.inline-editor').forEach(e => e.remove());
+  const ed = document.createElement('input');
+  ed.type = 'text'; ed.className = 'inline-editor';
+  ed.value = eixosLabels[idx] || eixos[idx] || '';
+  ed.style.left = pos.x + 'px';
+  ed.style.top  = pos.y + 'px';
+  let fechado = false;
+  const commitEd = () => {
+    if (fechado) return; fechado = true;
+    eixosLabels[idx] = ed.value;
+    if (ed.parentNode) ed.parentNode.removeChild(ed);
+    renderAxisList(); renderRadar(); commit();
+  };
+  ed.onkeydown = e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); commitEd(); }
+    else if (e.key === 'Escape') { fechado = true; if (ed.parentNode) ed.parentNode.removeChild(ed); }
+  };
+  ed.onblur = commitEd;
+  wrap.appendChild(ed);
+  ed.focus(); ed.select();
+}
+
 function configurarDragRadar() {
   const canvas = document.getElementById('radarChart');
   if (!canvas || canvas._dragConfigured) return;
   canvas._dragConfigured = true;
+
+  // Duplo-clique num rótulo = editar inline (entra no modo custom se preciso)
+  canvas.addEventListener('dblclick', ev => {
+    const { x, y } = coordsCanvas(ev);
+    const idx = rotuloMaisProximo(x, y, 45);
+    if (idx === null) return;
+    ev.preventDefault();
+    if (modoLabel !== 'custom') setModoLabel('custom');
+    const pos = getPosicoesRotulos().find(p => p.idx === idx);
+    if (pos) abrirEditorInline(idx, pos);
+  });
 
   canvas.addEventListener('mousemove', ev => {
     const { x, y } = coordsCanvas(ev);
