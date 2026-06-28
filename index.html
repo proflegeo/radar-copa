@@ -647,6 +647,30 @@ let tamanhoRotulo = 13;         // px do font-size dos rótulos
 let quebrarLinhas = false;      // quebra rótulos longos em 2 linhas
 let modoLabel = 'texto';        // 'texto' | 'emoji' | 'custom'
 let eixosLabels = [];           // labels customizados (índice alinha com eixos[])
+
+// ===PURE-HELPERS-START===
+// Lógica pura (sem DOM) — testada em docs/plans/tests/test_helpers.mjs
+function moverParalelo(arrays, from, to) {
+  for (const k in arrays) {
+    const a = arrays[k];
+    if (!Array.isArray(a)) continue;
+    const item = a.splice(from, 1)[0];
+    a.splice(to, 0, item);
+  }
+}
+function histPush(h, snap, limit) {
+  h.lista = h.lista.slice(0, h.ptr + 1); // descarta redo pendente
+  h.lista.push(snap);
+  if (h.lista.length > limit) h.lista.shift();
+  h.ptr = h.lista.length - 1;
+  return h;
+}
+function histUndo(h) { return h.ptr > 0 ? h.lista[--h.ptr] : null; }
+function histRedo(h) { return h.ptr < h.lista.length - 1 ? h.lista[++h.ptr] : null; }
+function podeDesfazer(h) { return h.ptr > 0; }
+function podeRefazer(h) { return h.ptr < h.lista.length - 1; }
+// ===PURE-HELPERS-END===
+
 const ctx = document.getElementById('radarChart').getContext('2d');
 
 // ─── BANDEIRAS — cores primária e secundária ─────────────────
