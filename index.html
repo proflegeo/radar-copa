@@ -671,6 +671,42 @@ function podeDesfazer(h) { return h.ptr > 0; }
 function podeRefazer(h) { return h.ptr < h.lista.length - 1; }
 // ===PURE-HELPERS-END===
 
+// ─── ESTADO POR EIXO + HISTÓRICO (desfazer/refazer) ──────────
+let eixosImagens = [];   // dataURL PNG por eixo (ou null)
+let eixosTamanho = [];   // fator de escala por eixo (padrão 1)
+const HIST = { lista: [], ptr: -1 };
+function atualizarBotoesHistorico() {}  // substituído na Task 6
+
+function sincronizarArraysEixos() {
+  for (let i = 0; i < eixos.length; i++) {
+    if (eixosLabels[i] === undefined) eixosLabels[i] = '';
+    if (eixosImagens[i] === undefined) eixosImagens[i] = null;
+    if (eixosTamanho[i] === undefined || !eixosTamanho[i]) eixosTamanho[i] = 1;
+  }
+  eixosLabels.length = eixos.length;
+  eixosImagens.length = eixos.length;
+  eixosTamanho.length = eixos.length;
+}
+
+function snapshotConfig() {
+  return JSON.parse(JSON.stringify({
+    eixos, eixosLabels, eixosImagens, eixosTamanho,
+    tema: temaAtual, modoLabel,
+    cLinha: document.getElementById('cLinha').value,
+    cFundo: document.getElementById('cFundo').value,
+    opacidade: document.getElementById('rOpacity').value,
+    espessura: document.getElementById('rEsp').value,
+    ponto: document.getElementById('rPt').value
+  }));
+}
+
+// Toda ação mutadora chama commit(): persiste + empilha no histórico.
+function commit() {
+  salvarConfig();
+  histPush(HIST, snapshotConfig(), 50);
+  atualizarBotoesHistorico();
+}
+
 const ctx = document.getElementById('radarChart').getContext('2d');
 
 // ─── BANDEIRAS — cores primária e secundária ─────────────────
@@ -1014,10 +1050,15 @@ function processarDados(linhas, msg) {
   setStatus(msg);
   carregarConfig();      // restaura tema/eixos/toggles salvos
   configurarPainel();    // filtra eixos contra colunas reais e popula selects
+  sincronizarArraysEixos(); // alinha eixosLabels/Imagens/Tamanho ao length de eixos
   calcularStats();       // estatísticas mundiais para média/destaques/pódio
   aplicarTema(temaAtual);// reaplica cores do tema restaurado
   renderAxisList();
   inicializarStudio();   // prepara selects de fonte para lerEstiloStudio() funcionar no lote
+  // Semeia o histórico com o estado inicial (baseline do desfazer)
+  HIST.lista = []; HIST.ptr = -1;
+  histPush(HIST, snapshotConfig(), 50);
+  atualizarBotoesHistorico();
 }
 
 // ─── PANEL SETUP ─────────────────────────────────────────────
@@ -1226,7 +1267,7 @@ function toggleGradiente() {
 // ─── PERSISTÊNCIA DE CONFIGURAÇÕES ───────────────────────────
 function salvarConfig() {
   const cfg = {
-    tema: temaAtual, eixos, eixosLabels,
+    tema: temaAtual, eixos, eixosLabels, eixosImagens, eixosTamanho,
     mostrarMedia, mostrarDestaques, usarGradiente, labelsCurvos, modoBandeira,
     mostrarRotulos, tamanhoRotulo, quebrarLinhas, modoLabel,
     cLinha: document.getElementById('cLinha').value,
@@ -1254,6 +1295,8 @@ function carregarConfig() {
     if (cfg.quebrarLinhas !== undefined) quebrarLinhas = !!cfg.quebrarLinhas;
     if (cfg.modoLabel) modoLabel = cfg.modoLabel;
     if (cfg.eixosLabels) eixosLabels = cfg.eixosLabels;
+    if (Array.isArray(cfg.eixosImagens)) eixosImagens = cfg.eixosImagens;
+    if (Array.isArray(cfg.eixosTamanho)) eixosTamanho = cfg.eixosTamanho;
     if (cfg.cLinha) document.getElementById('cLinha').value = cfg.cLinha;
     if (cfg.cFundo) document.getElementById('cFundo').value = cfg.cFundo;
     if (cfg.opacidade) { document.getElementById('rOpacity').value = cfg.opacidade; document.getElementById('lblOp').textContent = Math.round(cfg.opacidade*100)+'%'; }
