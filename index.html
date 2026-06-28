@@ -369,6 +369,10 @@
       flex-shrink: 0; color: var(--text);
     }
     .axis-label-input:focus { outline: none; border-color: var(--g700); background: white; }
+    .axis-img-btn { cursor: pointer; font-size: 14px; padding: 0 2px; user-select: none; flex-shrink: 0; line-height: 1; }
+    .axis-img-btn:hover { filter: brightness(1.15); }
+    .axis-size { width: 50px; accent-color: var(--g700); flex-shrink: 0; }
+    .axis-row { flex-wrap: wrap; }
     .modo-row { display: flex; gap: 4px; margin-top: 8px; }
     .modo-btn {
       flex: 1; padding: 6px 4px; border: 1px solid var(--border); border-radius: 6px;
@@ -1140,12 +1144,51 @@ function renderAxisList() {
       eixosLabels[i] = inp.value;
       renderRadar();
     };
+    inp.onchange = () => commit(); // grava no histórico ao terminar de digitar
+
+    // Botão de imagem PNG (substitui o rótulo por uma imagem)
+    const imgBtn = document.createElement('label');
+    imgBtn.className = 'axis-img-btn';
+    imgBtn.title = 'Usar imagem PNG no lugar do rótulo';
+    imgBtn.textContent = eixosImagens[i] ? '🖼️*' : '🖼️';
+    imgBtn.style.display = modoLabel === 'custom' ? '' : 'none';
+    const imgInput = document.createElement('input');
+    imgInput.type = 'file'; imgInput.accept = '.png,.jpg,.jpeg'; imgInput.style.display = 'none';
+    imgInput.onchange = async () => {
+      if (!imgInput.files[0]) return;
+      try {
+        eixosImagens[i] = await redimensionarImagem(imgInput.files[0], 128);
+        renderAxisList(); renderRadar(); commit();
+      } catch(_) { alert('Não consegui ler essa imagem.'); }
+    };
+    imgBtn.appendChild(imgInput);
+
+    // Remover imagem — só aparece se houver imagem
+    const imgRm = document.createElement('button');
+    imgRm.className = 'btn-rm'; imgRm.textContent = '🚫'; imgRm.title = 'Remover imagem';
+    imgRm.draggable = false;
+    imgRm.style.display = (modoLabel === 'custom' && eixosImagens[i]) ? '' : 'none';
+    imgRm.onclick = () => { eixosImagens[i] = null; renderAxisList(); renderRadar(); commit(); };
+
+    // Slider de tamanho individual (texto ou imagem)
+    const size = document.createElement('input');
+    size.type = 'range'; size.className = 'axis-size';
+    size.min = '0.5'; size.max = '2'; size.step = '0.1';
+    size.value = String(eixosTamanho[i] || 1);
+    size.title = 'Tamanho deste rótulo';
+    size.draggable = false;
+    size.style.display = modoLabel === 'custom' ? '' : 'none';
+    size.oninput = () => { eixosTamanho[i] = parseFloat(size.value); renderRadar(); };
+    size.onchange = () => commit(); // grava no histórico só ao soltar
 
     const rm = document.createElement('button');
     rm.className = 'btn-rm';
     rm.textContent = '✕';
     rm.draggable = false;
-    rm.onclick = () => { eixos.splice(i,1); renderAxisList(); salvarConfig(); renderRadar(); renderCards(); };
+    rm.onclick = () => {
+      eixos.splice(i,1); eixosLabels.splice(i,1); eixosImagens.splice(i,1); eixosTamanho.splice(i,1);
+      renderAxisList(); renderRadar(); renderCards(); commit();
+    };
 
     // Eventos de drag-and-drop
     row.addEventListener('dragstart', ev => {
@@ -1179,17 +1222,16 @@ function renderAxisList() {
       if (from === null || from === to || from === to - 1) {
         renderAxisList(); return;
       }
-      const item = eixos.splice(from, 1)[0];
       if (from < to) to--; // ajusta índice após remoção
-      eixos.splice(to, 0, item);
+      moverParalelo({eixos, eixosLabels, eixosImagens, eixosTamanho}, from, to);
       dragSrcIndex = null;
       renderAxisList();
-      salvarConfig();
       renderRadar();
       renderCards();
+      commit();
     });
 
-    row.append(handle, num, sel, inp, rm);
+    row.append(handle, num, sel, inp, imgBtn, imgRm, size, rm);
     c.appendChild(row);
   });
 }
@@ -1228,7 +1270,24 @@ function restaurarOrdemNarrativa() {
 function addEixo() {
   const cp = document.getElementById('colPais').value;
   const nova = colunas.find(c => c !== cp && !eixos.includes(c)) || colunas.find(c => c !== cp);
-  if (nova) { eixos.push(nova); renderAxisList(); renderRadar(); renderCards(); }
+  if (nova) { eixos.push(nova); sincronizarArraysEixos(); renderAxisList(); renderRadar(); renderCards(); commit(); }
+}
+
+// Redimensiona um arquivo de imagem para no máx. `maxLado` px e retorna dataURL PNG
+function redimensionarImagem(file, maxLado = 128) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const escala = Math.min(1, maxLado / Math.max(img.width, img.height));
+      const w = Math.round(img.width * escala), h = Math.round(img.height * escala);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(cv.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
 }
 
 // ─── LABELS CURVOS ───────────────────────────────────────────
