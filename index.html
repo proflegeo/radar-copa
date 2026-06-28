@@ -864,6 +864,7 @@ function processarDados(linhas, msg) {
   calcularStats();       // estatísticas mundiais para média/destaques/pódio
   aplicarTema(temaAtual);// reaplica cores do tema restaurado
   renderAxisList();
+  inicializarStudio();   // prepara selects de fonte para lerEstiloStudio() funcionar no lote
 }
 
 // ─── PANEL SETUP ─────────────────────────────────────────────
@@ -1763,20 +1764,27 @@ const FONTES_DISPONIVEIS = [
 ];
 let studioCorner = 'br';
 
-function abrirStudio() {
-  if (!dados.length || !grafico) return;
-  // Popula selects de fonte (uma vez)
+// Inicializa controles do Estúdio sem abrir o modal
+// (chamado no load de dados pra lerEstiloStudio() funcionar no lote)
+function inicializarStudio() {
   ['exFonteTitulo','exFonteScore'].forEach(id => {
     const sel = document.getElementById(id);
-    if (sel.options.length === 0) {
+    if (sel && sel.options.length === 0) {
       FONTES_DISPONIVEIS.forEach(f => sel.appendChild(new Option(f.n, f.v)));
     }
   });
-  // Sincroniza cor de fundo do tema atual no campo
   const tema = TEMAS[temaAtual] || TEMAS.copa;
-  document.getElementById('exFundoCor').value = tema.fundoCanvas;
-  document.getElementById('exCorRotulos').value = tema.label;
-  document.getElementById('exCurvos').classList.toggle('on', labelsCurvos);
+  const fc = document.getElementById('exFundoCor');
+  const cr = document.getElementById('exCorRotulos');
+  if (fc && !fc._inicializado) { fc.value = tema.fundoCanvas; fc._inicializado = true; }
+  if (cr && !cr._inicializado) { cr.value = tema.label; cr._inicializado = true; }
+  const curv = document.getElementById('exCurvos');
+  if (curv) curv.classList.toggle('on', labelsCurvos);
+}
+
+function abrirStudio() {
+  if (!dados.length || !grafico) return;
+  inicializarStudio();
   document.getElementById('modalStudio').classList.add('open');
   renderStudio();
 }
@@ -1921,9 +1929,13 @@ async function exportarLote() {
   const al = parseFloat(document.getElementById('rOpacity').value);
   const bw = parseInt(document.getElementById('rEsp').value);
   const pr = parseInt(document.getElementById('rPt').value);
-  const mostrarScore  = document.getElementById('loteScore')?.checked;
-  const mostrarPos    = document.getElementById('lotePosicao')?.checked;
-  const mostrarTitulo = document.getElementById('loteTitulo')?.checked;
+  // Usa configurações do Estúdio (mesmas do export individual)
+  const estilo = lerEstiloStudio();
+  // Override de fundo: se lote marcou "transparente", prevalece; senão usa cor do estúdio
+  if (!transparente) estilo.fundoCor = document.getElementById('exFundoCor').value;
+  const mostrarScore  = document.getElementById('exScore').classList.contains('on');
+  const mostrarPos    = document.getElementById('exPos').classList.contains('on');
+  const mostrarTitulo = document.getElementById('exNome').classList.contains('on');
 
   const btn = document.getElementById('btnZip');
   btn.disabled = true;
@@ -1951,7 +1963,9 @@ async function exportarLote() {
     const cv = await comporRadarPNG({
       pais, tam, transparente,
       mostrarScore, mostrarPos, mostrarTitulo,
-      cl, cf, al, bw, pr
+      cl, cf, al, bw, pr,
+      usarGradiente,
+      estilo       // todas as configs do Estúdio: fonte, cores, posição do badge, etc.
     });
     if (!cv) continue;
 
@@ -2001,18 +2015,15 @@ async function exportarLote() {
           <option value="1200">1200 × 1200 px</option>
         </select>
       </div>
-      <div>
-        <label>Incluir no PNG</label>
-        <div style="display:flex;gap:10px;margin-top:6px;">
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal;cursor:pointer;">
-            <input type="checkbox" id="loteScore" checked style="accent-color:var(--g700)"> Score
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal;cursor:pointer;">
-            <input type="checkbox" id="lotePosicao" style="accent-color:var(--g700)"> Posição
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal;cursor:pointer;">
-            <input type="checkbox" id="loteTitulo" checked style="accent-color:var(--g700)"> Nome
-          </label>
+      <div style="flex:1;">
+        <label>Estilo visual</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:7px 10px;background:var(--g100);border:1px solid var(--g500);border-radius:6px;">
+          <span style="font-size:11px;color:var(--g900);font-weight:600;flex:1;">
+            🎨 Herdado do Estúdio PNG<br>
+            <span style="font-weight:400;color:var(--muted);">Fonte, cores, badge, nome, posição</span>
+          </span>
+          <button class="btn btn-outline" style="width:auto;padding:4px 10px;font-size:11px;white-space:nowrap;"
+            onclick="fecharModalLote();abrirStudio();">⚙️ Configurar</button>
         </div>
       </div>
     </div>
