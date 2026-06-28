@@ -541,7 +541,7 @@
     <div class="top-actions">
       <div class="score-badge" id="scoreBadge">
         <span class="score-num" id="scoreNum">—</span>
-        <span class="score-denom">/ 100</span>
+
       </div>
       <div class="export-opts">
         <label><input type="checkbox" id="expScore" checked> Score</label>
@@ -1699,7 +1699,7 @@ async function comporRadarPNG(opts) {
     const innerW = Math.max(numW, denomW);
     const padBadge = tam * 0.02;
     const bw2 = innerW + padBadge * 2;
-    const bh2 = fScore * 1.05 + fDenom * 1.1 + padBadge * 1.4;
+    const bh2 = fScore * 1.05 + padBadge * 1.4; // sem /100
 
     // Posição conforme corner
     let bx, by;
@@ -1717,11 +1717,9 @@ async function comporRadarPNG(opts) {
     cx2.fillStyle = scoreFg;
     cx2.textAlign = 'center';
     cx2.textBaseline = 'middle';
-    cx2.fillText(scoreStr, bx + bw2/2, by + padBadge + fScore * 0.52);
+    cx2.fillText(scoreStr, bx + bw2/2, by + bh2/2);
 
-    cx2.font = `600 ${fDenom}px Inter,sans-serif`;
-    cx2.fillStyle = hexRgba(scoreFg, 0.7);
-    cx2.fillText('/ 100', bx + bw2/2, by + padBadge + fScore * 1.05 + fDenom * 0.55);
+    // "/ 100" removido por decisão de design
   }
 
   // ── RANKING (canto oposto ao score) ──
