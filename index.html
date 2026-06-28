@@ -362,6 +362,22 @@
     }
     .switch.on::after { transform: translateX(17px); }
 
+    /* Rótulos customizados */
+    .axis-label-input {
+      width: 68px; padding: 4px 5px; font-size: 15px; border: 1px dashed var(--g500);
+      border-radius: 5px; background: var(--g100); text-align: center;
+      flex-shrink: 0; color: var(--text);
+    }
+    .axis-label-input:focus { outline: none; border-color: var(--g700); background: white; }
+    .modo-row { display: flex; gap: 4px; margin-top: 8px; }
+    .modo-btn {
+      flex: 1; padding: 6px 4px; border: 1px solid var(--border); border-radius: 6px;
+      background: white; font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s; font-family: 'Inter', sans-serif; text-align: center; line-height: 1.4;
+    }
+    .modo-btn:hover { border-color: var(--g500); }
+    .modo-btn.on { border-color: var(--g700); background: var(--g100); color: var(--g700); }
+
     /* ── EXPORT STUDIO ─────────────────────── */
     .studio { width: 92vw; max-width: 1080px; height: 88vh; max-height: 760px; display: grid; grid-template-columns: 1fr 320px; grid-template-rows: auto 1fr auto; }
     .studio-head { grid-column: 1 / -1; }
@@ -530,6 +546,42 @@
     </div>
   </div>
 
+  <!-- RÓTULOS -->
+  <div>
+    <div class="sec-title">🏷️ Rótulos dos Eixos</div>
+    <div class="card">
+      <div class="switch-row">
+        <span class="switch-label"><span class="si">👁️</span> Mostrar rótulos</span>
+        <div class="switch on" id="swRotulos" role="switch" tabindex="0"
+          onclick="toggleRotulos()"
+          onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();toggleRotulos();}"></div>
+      </div>
+      <div class="form-row">
+        <div class="range-label"><label>Tamanho da fonte</label><span id="lblRotulo">13px</span></div>
+        <input type="range" id="rRotulo" min="8" max="26" step="1" value="13"
+          oninput="setTamanhoRotulo(this.value)">
+      </div>
+      <div class="switch-row">
+        <span class="switch-label"><span class="si">↩️</span> Quebrar linhas longas</span>
+        <div class="switch" id="swQuebrar" role="switch" tabindex="0"
+          onclick="toggleQuebrarLinhas()"
+          onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();toggleQuebrarLinhas();}"></div>
+      </div>
+      <div style="margin-top:10px;">
+        <label>Modo do rótulo</label>
+        <div class="modo-row">
+          <button id="modoBtn_texto"  class="modo-btn on" onclick="setModoLabel('texto')">Abc<br><span style="font-size:9px;font-weight:400;color:var(--muted)">Texto</span></button>
+          <button id="modoBtn_emoji"  class="modo-btn"    onclick="setModoLabel('emoji')">🌍<br><span style="font-size:9px;font-weight:400;color:var(--muted)">Emoji</span></button>
+          <button id="modoBtn_custom" class="modo-btn"    onclick="setModoLabel('custom')">✏️<br><span style="font-size:9px;font-weight:400;color:var(--muted)">Custom</span></button>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;">
+          <b>Emoji</b>: ícones automáticos por eixo<br>
+          <b>Custom</b>: edite cada label na lista de eixos acima (qualquer emoji ou texto)
+        </div>
+      </div>
+    </div>
+  </div>
+
 </aside>
 
 <main>
@@ -590,6 +642,11 @@ let mostrarMedia = false;       // anel/linha da média mundial
 let mostrarDestaques = false;   // realça maior valor de cada eixo
 let usarGradiente = false;      // preenchimento com gradiente radial
 let statsMundiais = null;       // {eixo: {min,max,media,paisMax,paisMin}}
+let mostrarRotulos = true;       // exibe/oculta rótulos dos eixos
+let tamanhoRotulo = 13;         // px do font-size dos rótulos
+let quebrarLinhas = false;      // quebra rótulos longos em 2 linhas
+let modoLabel = 'texto';        // 'texto' | 'emoji' | 'custom'
+let eixosLabels = [];           // labels customizados (índice alinha com eixos[])
 const ctx = document.getElementById('radarChart').getContext('2d');
 
 // ─── BANDEIRAS — cores primária e secundária ─────────────────
@@ -714,49 +771,116 @@ function getMediaMundial() {
 // ─── PLUGIN: RÓTULOS CURVOS (texto seguindo o arco) ──────────
 // Desenha cada rótulo letra-a-letra ao longo de um arco circular,
 // como se o texto "abraçasse" o radar. Sem decorações extras.
+// ─── MAPA DE EMOJIS POR EIXO ─────────────────────────────────
+const EMOJI_EIXOS = {
+  'Geopolítica':'🌍','Geopolitica':'🌍',
+  'Qualidade de vida':'❤️','Qualidade':'❤️',
+  'Ciência e Tecnologia':'🔬','Ciencia e Tecnologia':'🔬','C. e Tecnologia':'🔬',
+  'Economia':'💰',
+  'Território':'🗺️','Territorio':'🗺️',
+  'Demo':'👥','Dem':'👥','Demo':'👥',
+  'Governo':'🏛️',
+  'Meio Ambiente':'🌿','Meio ambiente':'🌿',
+  'Território (km²)':'🗺️','PIB':'💹','IDH':'📊',
+  'Paz':'🕊️','Militar':'⚔️','Soft Power':'🤝',
+  'Sustentabilidade':'♻️','Desempenho Ambiental':'🌎',
+  'CO2':'💨','Logística':'🚢','P&D':'💡',
+};
+
+// Retorna os labels para exibição no gráfico (separa de eixos[] que são colunas de dados)
+function getLabelsExibicao() {
+  return eixos.map((e, i) => {
+    let label;
+    if (modoLabel === 'emoji') {
+      // Tenta match exato, depois parcial
+      label = EMOJI_EIXOS[e];
+      if (!label) {
+        const slug = e.toLowerCase().slice(0, 5);
+        const key = Object.keys(EMOJI_EIXOS).find(k => k.toLowerCase().startsWith(slug));
+        label = key ? EMOJI_EIXOS[key] : e;
+      }
+    } else if (modoLabel === 'custom' && eixosLabels[i]) {
+      label = eixosLabels[i];
+    } else {
+      label = e;
+    }
+    // Quebra linhas em 2 para labels longos (3+ palavras)
+    if (quebrarLinhas && typeof label === 'string') {
+      const words = label.split(' ');
+      if (words.length >= 3) {
+        const mid = Math.ceil(words.length / 2);
+        return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
+      }
+    }
+    return label;
+  });
+}
+
 const pluginLabelsCustom = {
   id: 'labelsCustom',
   afterDraw(chart) {
-    if (!labelsCurvos) return;
+    if (!labelsCurvos || !mostrarRotulos) return;
     const { ctx: c2, scales: { r } } = chart;
     const labels = chart.data.labels;
     const n = labels.length;
     const cx = r.xCenter, cy = r.yCenter;
     const baseRad = r.drawingArea;
-    const fontSize = Math.max(11, Math.round(baseRad / 14));
-    const textRad = baseRad + fontSize * 1.3;
+    const fontSize = window._tamanhoRotulo || tamanhoRotulo || 13;
+    const lineH = fontSize * 1.3;  // espaço entre linhas curvas
+    const textRad0 = baseRad + fontSize * 1.3;
 
     c2.save();
     const corRot = (window._corRotulosOverride) || '#1B5E20';
     const fonteRot = (window._fonteRotulosOverride) || '"Barlow Condensed"';
-    c2.font = `700 ${fontSize}px ${fonteRot},sans-serif`;
     c2.fillStyle = corRot;
     c2.textAlign = 'center';
     c2.textBaseline = 'middle';
 
-    labels.forEach((label, i) => {
+    labels.forEach((rawLabel, i) => {
       const center = (2 * Math.PI * i / n) - Math.PI / 2;
-      const chars = label.split('');
-      // largura angular total do texto
-      const totalW = chars.reduce((sum, ch) => sum + c2.measureText(ch).width, 0);
-      const angSpan = totalW / textRad;
-      // Hemisfério inferior: texto lê da esquerda p/ direita ao longo do arco
       const bottom = Math.sin(center) > 0.15;
-      let ang = bottom ? center + angSpan / 2 : center - angSpan / 2;
-      const dir = bottom ? -1 : 1;
+      // Suporte a multi-linha (array) e emoji (não curva, posiciona direto)
+      const linhas = Array.isArray(rawLabel) ? rawLabel : [rawLabel];
+      const totalLinhas = linhas.length;
 
-      chars.forEach(ch => {
-        const w = c2.measureText(ch).width;
-        const half = (w / textRad) / 2;
-        ang += dir * half;
-        const x = cx + textRad * Math.cos(ang);
-        const y = cy + textRad * Math.sin(ang);
-        c2.save();
-        c2.translate(x, y);
-        c2.rotate(ang + Math.PI / 2 + (bottom ? Math.PI : 0));
-        c2.fillText(ch, 0, 0);
-        c2.restore();
-        ang += dir * half;
+      linhas.forEach((label, li) => {
+        const isEmoji = /\p{Emoji}/u.test(label) && label.length <= 4;
+        // Offset radial para multi-linha: centraliza o bloco
+        const radOffset = (li - (totalLinhas - 1) / 2) * lineH;
+        const textRad = textRad0 + radOffset;
+
+        if (isEmoji || modoLabel === 'emoji') {
+          // Emoji: posiciona direto sem curvar (canvas não curva emojis bem)
+          c2.font = `${Math.round(fontSize * 1.3)}px sans-serif`;
+          const x = cx + textRad * Math.cos(center);
+          const y = cy + textRad * Math.sin(center);
+          c2.save();
+          c2.translate(x, y);
+          c2.textAlign = 'center';
+          c2.fillText(label, 0, 0);
+          c2.restore();
+        } else {
+          // Texto curvo letra a letra
+          c2.font = `700 ${fontSize}px ${fonteRot},sans-serif`;
+          const chars = label.split('');
+          const totalW = chars.reduce((sum, ch) => sum + c2.measureText(ch).width, 0);
+          const angSpan = totalW / textRad;
+          let ang = bottom ? center + angSpan / 2 : center - angSpan / 2;
+          const dir = bottom ? -1 : 1;
+          chars.forEach(ch => {
+            const w = c2.measureText(ch).width;
+            const half = (w / textRad) / 2;
+            ang += dir * half;
+            const x = cx + textRad * Math.cos(ang);
+            const y = cy + textRad * Math.sin(ang);
+            c2.save();
+            c2.translate(x, y);
+            c2.rotate(ang + Math.PI / 2 + (bottom ? Math.PI : 0));
+            c2.fillText(ch, 0, 0);
+            c2.restore();
+            ang += dir * half;
+          });
+        }
       });
     });
     c2.restore();
@@ -927,11 +1051,25 @@ function renderAxisList() {
     num.textContent = (i+1)+'º';
 
     const sel = document.createElement('select');
-    sel.draggable = false; // evita conflito com drag da linha
+    sel.draggable = false;
     colunas.filter(col => col !== cp).forEach(col => {
       const o = new Option(col, col); if (col === e) o.selected = true; sel.appendChild(o);
     });
     sel.onchange = () => { eixos[i] = sel.value; salvarConfig(); renderRadar(); renderCards(); };
+
+    // Campo de label customizado (visível só no modo 'custom')
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'axis-label-input';
+    inp.placeholder = 'emoji/texto';
+    inp.value = eixosLabels[i] || '';
+    inp.title = 'Label exibido no radar (emoji ou texto)';
+    inp.draggable = false;
+    inp.style.display = modoLabel === 'custom' ? '' : 'none';
+    inp.oninput = () => {
+      eixosLabels[i] = inp.value;
+      renderRadar();
+    };
 
     const rm = document.createElement('button');
     rm.className = 'btn-rm';
@@ -981,7 +1119,7 @@ function renderAxisList() {
       renderCards();
     });
 
-    row.append(handle, num, sel, rm);
+    row.append(handle, num, sel, inp, rm);
     c.appendChild(row);
   });
 }
@@ -1059,8 +1197,9 @@ function toggleGradiente() {
 // ─── PERSISTÊNCIA DE CONFIGURAÇÕES ───────────────────────────
 function salvarConfig() {
   const cfg = {
-    tema: temaAtual, eixos,
+    tema: temaAtual, eixos, eixosLabels,
     mostrarMedia, mostrarDestaques, usarGradiente, labelsCurvos, modoBandeira,
+    mostrarRotulos, tamanhoRotulo, quebrarLinhas, modoLabel,
     cLinha: document.getElementById('cLinha').value,
     cFundo: document.getElementById('cFundo').value,
     opacidade: document.getElementById('rOpacity').value,
@@ -1081,6 +1220,11 @@ function carregarConfig() {
     usarGradiente = !!cfg.usarGradiente;
     labelsCurvos = !!cfg.labelsCurvos;
     modoBandeira = !!cfg.modoBandeira;
+    if (cfg.mostrarRotulos !== undefined) mostrarRotulos = !!cfg.mostrarRotulos;
+    if (cfg.tamanhoRotulo) { tamanhoRotulo = cfg.tamanhoRotulo; const el=document.getElementById('rRotulo'); if(el){el.value=tamanhoRotulo; document.getElementById('lblRotulo').textContent=tamanhoRotulo+'px';} }
+    if (cfg.quebrarLinhas !== undefined) quebrarLinhas = !!cfg.quebrarLinhas;
+    if (cfg.modoLabel) modoLabel = cfg.modoLabel;
+    if (cfg.eixosLabels) eixosLabels = cfg.eixosLabels;
     if (cfg.cLinha) document.getElementById('cLinha').value = cfg.cLinha;
     if (cfg.cFundo) document.getElementById('cFundo').value = cfg.cFundo;
     if (cfg.opacidade) { document.getElementById('rOpacity').value = cfg.opacidade; document.getElementById('lblOp').textContent = Math.round(cfg.opacidade*100)+'%'; }
@@ -1093,7 +1237,40 @@ function carregarConfig() {
     document.getElementById('btnLabels')?.classList.toggle('on', labelsCurvos);
     document.getElementById('btnBandeira')?.classList.toggle('bandeira-on', modoBandeira);
     document.querySelectorAll('.tema-btn').forEach(b => b.classList.toggle('on', b.dataset.tema === temaAtual));
+    document.getElementById('swRotulos')?.classList.toggle('on', mostrarRotulos);
+    document.getElementById('swQuebrar')?.classList.toggle('on', quebrarLinhas);
+    ['texto','emoji','custom'].forEach(m => document.getElementById('modoBtn_'+m)?.classList.toggle('on', m === modoLabel));
   } catch(e) {}
+}
+
+function toggleRotulos() {
+  mostrarRotulos = !mostrarRotulos;
+  document.getElementById('swRotulos').classList.toggle('on', mostrarRotulos);
+  salvarConfig(); renderRadar();
+}
+
+function setTamanhoRotulo(v) {
+  tamanhoRotulo = parseInt(v);
+  document.getElementById('lblRotulo').textContent = v + 'px';
+  salvarConfig(); renderRadar();
+}
+
+function toggleQuebrarLinhas() {
+  quebrarLinhas = !quebrarLinhas;
+  document.getElementById('swQuebrar').classList.toggle('on', quebrarLinhas);
+  salvarConfig(); renderRadar();
+}
+
+function setModoLabel(modo) {
+  modoLabel = modo;
+  ['texto','emoji','custom'].forEach(m => {
+    document.getElementById('modoBtn_'+m).classList.toggle('on', m === modo);
+  });
+  // Mostra/oculta campos de input customizado na lista de eixos
+  document.querySelectorAll('.axis-label-input').forEach(el => {
+    el.style.display = modo === 'custom' ? '' : 'none';
+  });
+  salvarConfig(); renderRadar();
 }
 
 function getCorBandeira(pais) {
@@ -1262,7 +1439,7 @@ function renderRadar() {
   if (grafico) grafico.destroy();
   grafico = new Chart(ctx, {
     type: 'radar',
-    data: { labels: eixos, datasets },
+    data: { labels: getLabelsExibicao(), datasets },
     options: {
       animation: { duration: 350 },
       responsive: true, maintainAspectRatio: false,
@@ -1293,13 +1470,15 @@ function renderRadar() {
           min: 0, max: 100,
           angleLines: { color: tema.angle },
           grid: { color: tema.grid },
-          pointLabels: { display: !labelsCurvos, font: { size: 13, weight: '700', family: 'Barlow Condensed' }, color: tema.label },
+          pointLabels: { display: mostrarRotulos && !labelsCurvos, font: { size: tamanhoRotulo, weight: '700', family: 'Barlow Condensed' }, color: tema.label },
           ticks: { stepSize: 20, backdropColor: 'transparent', color: tema.tick, font: { size: 9 } }
         }
       }
     }
   });
 
+  // Expõe tamanho de rótulo pro plugin de texto curvo
+  window._tamanhoRotulo = tamanhoRotulo;
   // Ativa arrasto de rótulos no radar (configura uma vez; sobrevive a re-renders)
   configurarDragRadar();
 }
