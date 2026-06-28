@@ -14,6 +14,7 @@ com o resultado idêntico na tela interativa **e** nos PNGs exportados (Estúdio
 1. **Editar o rótulo direto no gráfico** (duplo-clique no rótulo).
 2. **Usar uma imagem PNG no lugar do rótulo** (upload por eixo).
 3. **Tamanho individual** por eixo (texto ou imagem).
+4. **Desfazer/Refazer** das edições (Ctrl+Z / Ctrl+Shift+Z + botões na UI).
 
 ## Estado atual relevante (já existe no código)
 
@@ -52,7 +53,21 @@ com o resultado idêntico na tela interativa **e** nos PNGs exportados (Estúdio
   tamanho base de desenho).
 - Botão "restaurar tamanho padrão" zera todos para 1.0.
 
-### 4. Consistência tela ↔ PNG
+### 4. Desfazer / Refazer
+- Histórico = pilha de snapshots do estado editável (mesmo objeto que `salvarConfig`
+  persiste: `eixos`, `eixosLabels`, `eixosImagens`, `eixosTamanho`, tema, cores, toggles).
+- Toda ação mutadora (reordenar, add/remover eixo, editar label, imagem, tamanho, tema,
+  cores) empilha um snapshot **antes** de aplicar. Limite ~50 snapshots (descarta os mais
+  antigos) para não pesar.
+- **Ctrl+Z** desfaz (move ponteiro para trás e reaplica o snapshot); **Ctrl+Shift+Z** e
+  **Ctrl+Y** refazem. Guardado: ignorar quando o foco está em input/textarea (deixa o
+  desfazer nativo do texto agir), inclusive durante a edição inline no gráfico.
+- UI: dois botões-ícone na barra superior de ações (`top-actions`): **↶** (desfazer) e
+  **↷** (refazer), desabilitados/esmaecidos quando não há histórico naquela direção.
+- Aplicar um snapshot reusa o caminho de `carregarConfig()` + re-render, sem empilhar
+  novo histórico (senão criaria loop).
+
+### 5. Consistência tela ↔ PNG
 - A mesma fonte de verdade (`eixosLabels`, `eixosImagens`, `eixosTamanho`) é lida pelos dois
   caminhos de desenho: o plugin de canvas da tela e `comporRadarPNG`.
 - Imagens em PNG export: como `drawImage` precisa da imagem carregada, pré-carregar os
@@ -67,6 +82,10 @@ eixosTamanho: number[]   // fator de escala por eixo, padrão 1.0  (novo)
 ```
 Índices alinham com `eixos[]`. Ao adicionar/remover/reordenar eixos, os três arrays
 acompanham a operação.
+
+**Histórico (desfazer/refazer):** vive **só em memória** (não persiste no localStorage):
+`historico: snapshot[]` + `ponteiro: number`. Cada snapshot é uma cópia profunda do
+objeto de config. Some ao recarregar a página (aceitável).
 
 ## Restrições / riscos
 
@@ -86,4 +105,5 @@ acompanham a operação.
 - Repro/lógica isolada em Node para a resolução de label (texto/emoji/imagem/tamanho),
   no espírito do teste já usado para o bug da Demografia.
 - Verificação manual no app (carregar dados de exemplo, editar inline, subir PNG,
-  mudar tamanho, exportar Estúdio e Lote, conferir consistência) — via skill `verify`.
+  mudar tamanho, desfazer/refazer com Ctrl+Z e botões, exportar Estúdio e Lote,
+  conferir consistência) — via skill `verify`.
