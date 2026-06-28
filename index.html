@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Copa da Geografia 2026 — Radar Interativo</title>
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;1,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;1,700&family=Inter:wght@400;500;600;700&family=Poppins:wght@400;600;700;800&family=Montserrat:wght@400;600;700;800&family=Playfair+Display:wght@600;700;800&family=Oswald:wght@400;600;700&family=Bebas+Neue&family=Roboto+Mono:wght@500;700&family=Archivo+Black&family=Anton&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -111,6 +111,21 @@
     .axis-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
     .axis-num { font-size: 10px; color: var(--muted); width: 18px; text-align: right; font-weight: 700; flex-shrink: 0; }
     .axis-row select { flex: 1; padding: 5px 6px; font-size: 12px; }
+    .axis-row { cursor: default; position: relative; transition: background 0.12s; }
+    .axis-handle {
+      cursor: grab; color: #B0B7C0; font-size: 15px; line-height: 1;
+      padding: 0 2px; user-select: none; flex-shrink: 0;
+      letter-spacing: -2px;
+    }
+    .axis-handle:active { cursor: grabbing; }
+    .axis-row:hover .axis-handle { color: var(--g500); }
+    .axis-row.dragging { opacity: 0.4; }
+    .axis-row.drop-above::before, .axis-row.drop-below::after {
+      content: ''; position: absolute; left: 4px; right: 4px; height: 3px;
+      background: var(--g500); border-radius: 2px; z-index: 5;
+    }
+    .axis-row.drop-above::before { top: -3px; }
+    .axis-row.drop-below::after { bottom: -3px; }
     .btn-rm { background: none; border: none; cursor: pointer; font-size: 11px; padding: 2px 4px; color: var(--muted); flex-shrink: 0; }
     .btn-rm:hover { color: #DC2626; }
     .btn-add { background: none; border: 1px dashed var(--g500); color: var(--g500); font-size: 12px; font-weight: 600; padding: 5px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 6px; }
@@ -262,6 +277,15 @@
 
     /* Chart container */
     #chartWrap { position: relative; width: 100%; height: 100%; min-height: 0; }
+    #radarChart.dragmode { cursor: grab; }
+    #radarChart.dragging-label { cursor: grabbing; }
+    .drag-hint {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      background: rgba(27,94,32,0.9); color: white; font-size: 11px; font-weight: 600;
+      padding: 5px 12px; border-radius: 100px; pointer-events: none; opacity: 0;
+      transition: opacity 0.2s; z-index: 10; white-space: nowrap;
+    }
+    .drag-hint.show { opacity: 1; }
     #radarChart { display: none; width: 100% !important; height: 100% !important; }
     .awaiting {
       position: absolute; inset: 0; display: flex; flex-direction: column;
@@ -337,6 +361,34 @@
       transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     }
     .switch.on::after { transform: translateX(17px); }
+
+    /* ── EXPORT STUDIO ─────────────────────── */
+    .studio { width: 92vw; max-width: 1080px; height: 88vh; max-height: 760px; display: grid; grid-template-columns: 1fr 320px; grid-template-rows: auto 1fr auto; }
+    .studio-head { grid-column: 1 / -1; }
+    .studio-preview {
+      background: repeating-conic-gradient(#F3F4F6 0% 25%, #FFFFFF 0% 50%) 50% / 24px 24px;
+      display: flex; align-items: center; justify-content: center;
+      border-right: 1px solid var(--border); overflow: hidden; padding: 20px;
+    }
+    .studio-preview canvas { max-width: 100%; max-height: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.12); }
+    .studio-controls { overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+    .studio-foot { grid-column: 1 / -1; padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .ctrl-group { border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+    .ctrl-group-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px; }
+    .ctrl-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; gap: 8px; }
+    .ctrl-row:last-child { margin-bottom: 0; }
+    .ctrl-row label { font-size: 12px; font-weight: 500; color: var(--text); margin: 0; flex-shrink: 0; }
+    .ctrl-row select, .ctrl-row input[type="text"] { width: 130px; padding: 4px 8px; font-size: 12px; }
+    .ctrl-row input[type="color"] { width: 36px; height: 26px; padding: 1px; border: 1px solid var(--border); border-radius: 4px; }
+    .ctrl-row input[type="range"] { width: 110px; accent-color: var(--g700); }
+    .mini-switch { position: relative; width: 34px; height: 19px; flex-shrink: 0; background: var(--border); border-radius: 100px; cursor: pointer; transition: background 0.2s; }
+    .mini-switch.on { background: var(--g500); }
+    .mini-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+    .mini-switch.on::after { transform: translateX(15px); }
+    .corner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; width: 110px; }
+    .corner-btn { padding: 5px; border: 1px solid var(--border); border-radius: 4px; background: white; cursor: pointer; font-size: 14px; transition: all 0.15s; }
+    .corner-btn.on { border-color: var(--g700); background: var(--g100); }
+    .val-badge { font-size: 11px; color: var(--muted); min-width: 32px; text-align: right; }
   </style>
 </head>
 <body>
@@ -404,6 +456,7 @@
     <div class="card">
       <div id="listaEixos" style="max-height:200px;overflow-y:auto;"></div>
       <button class="btn-add" onclick="addEixo()">+ Adicionar Eixo</button>
+      <button class="btn-add" style="margin-top:6px;border-style:solid;border-color:var(--gold);color:#92400E;" onclick="restaurarOrdemNarrativa()" title="Topo = resultados, base = potencialidades">⬆️ Ordem Narrativa (Resultados/Base)</button>
     </div>
   </div>
 
@@ -503,6 +556,7 @@
 
   <!-- CHART -->
   <div id="chartWrap">
+    <div class="drag-hint" id="dragHint">✋ Arraste um rótulo sobre outro para trocá-los</div>
     <div class="awaiting" id="waiting">
       <div class="awaiting-icon">🌐</div>
       <h2>Copa da Geografia 2026</h2>
@@ -520,13 +574,13 @@
 let dados = [];
 let colunas = [];
 let eixos = [
-  "Geopolítica", "Qualidade de vida", "Economia", "Meio Ambiente",
-  "Território", "Demo", "Governo", "Ciência e Tecnologia"
+  "Geopolítica", "Qualidade de vida", "Ciência e Tecnologia", "Economia",
+  "Território", "Demo", "Meio Ambiente", "Governo"
 ];
-// RESULTADOS (topo): Geopolítica | Qualidade de vida | C. e Tecnologia
-// PONTES (lados)  : Economia (3h) | Governo (9h)
-// POTENCIAL(base) : Meio Ambiente | Território | Demo
-// Pares 180°: Geopolítica↔Território | QV↔Demo | Economia↔Governo | MA↔CT
+// EIXO VERTICAL = narrativa do país (Prof. Legeo):
+//   TOPO  (resultados, o que foi construído): Geopolítica, QV, C&T, Economia, Governo
+//   BASE  (potencialidades, o que o país tem): Território (6h), Demo (7:30h)
+//   Meio Ambiente (9h) faz a ponte entre base natural e resultado de políticas
 let comparando = false;
 let grafico = null;
 let labelsCurvos = false;
@@ -669,12 +723,14 @@ const pluginLabelsCustom = {
     const n = labels.length;
     const cx = r.xCenter, cy = r.yCenter;
     const baseRad = r.drawingArea;
-    const fontSize = Math.max(11, Math.round(baseRad / 13));
-    const textRad = baseRad + fontSize * 1.6;
+    const fontSize = Math.max(11, Math.round(baseRad / 14));
+    const textRad = baseRad + fontSize * 1.3;
 
     c2.save();
-    c2.font = `700 ${fontSize}px "Barlow Condensed",sans-serif`;
-    c2.fillStyle = '#1B5E20';
+    const corRot = (window._corRotulosOverride) || '#1B5E20';
+    const fonteRot = (window._fonteRotulosOverride) || '"Barlow Condensed"';
+    c2.font = `700 ${fontSize}px ${fonteRot},sans-serif`;
+    c2.fillStyle = corRot;
     c2.textAlign = 'center';
     c2.textBaseline = 'middle';
 
@@ -846,23 +902,118 @@ function preencherSelects() {
   atualizar();
 }
 
-// ─── AXIS CONFIG ─────────────────────────────────────────────
+// ─── AXIS CONFIG (com arrastar-e-soltar) ─────────────────────
+let dragSrcIndex = null;
+
 function renderAxisList() {
   const cp = document.getElementById('colPais').value;
   const c = document.getElementById('listaEixos');
   c.innerHTML = '';
   eixos.forEach((e, i) => {
-    const row = document.createElement('div'); row.className = 'axis-row';
-    const num = document.createElement('span'); num.className = 'axis-num'; num.textContent = (i+1)+'º';
+    const row = document.createElement('div');
+    row.className = 'axis-row';
+    row.draggable = true;
+    row.dataset.idx = i;
+
+    // Alça de arrasto
+    const handle = document.createElement('span');
+    handle.className = 'axis-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Arraste para reordenar';
+
+    const num = document.createElement('span');
+    num.className = 'axis-num';
+    num.textContent = (i+1)+'º';
+
     const sel = document.createElement('select');
+    sel.draggable = false; // evita conflito com drag da linha
     colunas.filter(col => col !== cp).forEach(col => {
       const o = new Option(col, col); if (col === e) o.selected = true; sel.appendChild(o);
     });
-    sel.onchange = () => { eixos[i] = sel.value; renderRadar(); renderCards(); };
-    const rm = document.createElement('button'); rm.className = 'btn-rm'; rm.textContent = '✕';
-    rm.onclick = () => { eixos.splice(i,1); renderAxisList(); renderRadar(); renderCards(); };
-    row.append(num, sel, rm); c.appendChild(row);
+    sel.onchange = () => { eixos[i] = sel.value; salvarConfig(); renderRadar(); renderCards(); };
+
+    const rm = document.createElement('button');
+    rm.className = 'btn-rm';
+    rm.textContent = '✕';
+    rm.draggable = false;
+    rm.onclick = () => { eixos.splice(i,1); renderAxisList(); salvarConfig(); renderRadar(); renderCards(); };
+
+    // Eventos de drag-and-drop
+    row.addEventListener('dragstart', ev => {
+      dragSrcIndex = i;
+      row.classList.add('dragging');
+      ev.dataTransfer.effectAllowed = 'move';
+      try { ev.dataTransfer.setData('text/plain', String(i)); } catch(_) {}
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      document.querySelectorAll('.axis-row').forEach(r => r.classList.remove('drop-above','drop-below'));
+    });
+    row.addEventListener('dragover', ev => {
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'move';
+      const rect = row.getBoundingClientRect();
+      const meio = rect.top + rect.height/2;
+      row.classList.toggle('drop-above', ev.clientY < meio);
+      row.classList.toggle('drop-below', ev.clientY >= meio);
+    });
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drop-above','drop-below');
+    });
+    row.addEventListener('drop', ev => {
+      ev.preventDefault();
+      const from = dragSrcIndex;
+      let to = i;
+      const rect = row.getBoundingClientRect();
+      const meio = rect.top + rect.height/2;
+      if (ev.clientY >= meio) to = i + 1; // soltar abaixo da metade = depois deste
+      if (from === null || from === to || from === to - 1) {
+        renderAxisList(); return;
+      }
+      const item = eixos.splice(from, 1)[0];
+      if (from < to) to--; // ajusta índice após remoção
+      eixos.splice(to, 0, item);
+      dragSrcIndex = null;
+      renderAxisList();
+      salvarConfig();
+      renderRadar();
+      renderCards();
+    });
+
+    row.append(handle, num, sel, rm);
+    c.appendChild(row);
   });
+}
+
+const ORDEM_NARRATIVA = [
+  "Geopolítica", "Qualidade de vida", "Ciência e Tecnologia", "Economia",
+  "Território", "Demo", "Meio Ambiente", "Governo"
+];
+
+function restaurarOrdemNarrativa() {
+  const cp = document.getElementById('colPais').value;
+  // Mantém só os eixos que existem nas colunas, na ordem narrativa.
+  // Tenta casar nomes mesmo com variações (Demo/Demografia).
+  const disponiveis = colunas.filter(c => c !== cp);
+  const novos = [];
+  ORDEM_NARRATIVA.forEach(nome => {
+    let achado = disponiveis.find(c => c === nome);
+    if (!achado) {
+      // match aproximado (ex.: "Demo" vs "Demografia")
+      const slug = nome.toLowerCase().slice(0, 4);
+      achado = disponiveis.find(c => c.toLowerCase().startsWith(slug));
+    }
+    if (achado && !novos.includes(achado)) novos.push(achado);
+  });
+  // Anexa quaisquer eixos restantes que estavam ativos e não entraram
+  eixos.forEach(e => { if (!novos.includes(e) && disponiveis.includes(e)) novos.push(e); });
+  if (novos.length) {
+    eixos = novos;
+    renderAxisList();
+    salvarConfig();
+    renderRadar();
+    renderCards();
+  }
 }
 
 function addEixo() {
@@ -1114,6 +1265,8 @@ function renderRadar() {
     options: {
       animation: { duration: 350 },
       responsive: true, maintainAspectRatio: false,
+      // Padding extra quando rótulos curvos ativos (ocupam mais raio que os normais)
+      layout: { padding: labelsCurvos ? 66 : 28 },
       plugins: {
         legend: {
           display: comparando || (mostrarMedia && !comparando), position: 'top',
@@ -1145,6 +1298,142 @@ function renderRadar() {
       }
     }
   });
+
+  // Ativa arrasto de rótulos no radar (configura uma vez; sobrevive a re-renders)
+  configurarDragRadar();
+}
+let radarDrag = { active: false, fromIdx: null, overIdx: null, mouseX: 0, mouseY: 0 };
+
+// Retorna a posição {x, y} de cada rótulo no canvas (coords do elemento)
+function getPosicoesRotulos() {
+  if (!grafico) return [];
+  const scale = grafico.scales.r;
+  if (!scale) return [];
+  const n = eixos.length;
+  const cx = scale.xCenter, cy = scale.yCenter;
+  // raio onde ficam os rótulos: um pouco além da área do gráfico
+  const rad = scale.drawingArea + (labelsCurvos ? scale.drawingArea*0.16 : 22);
+  const pos = [];
+  for (let i = 0; i < n; i++) {
+    const ang = (2*Math.PI*i/n) - Math.PI/2;
+    pos.push({ idx: i, x: cx + rad*Math.cos(ang), y: cy + rad*Math.sin(ang) });
+  }
+  return pos;
+}
+
+// Acha o índice do rótulo mais próximo do ponto (dentro de um raio de tolerância)
+function rotuloMaisProximo(x, y, tolerancia) {
+  const pos = getPosicoesRotulos();
+  let melhor = null, menorDist = tolerancia;
+  pos.forEach(p => {
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < menorDist) { menorDist = d; melhor = p.idx; }
+  });
+  return melhor;
+}
+
+function coordsCanvas(ev) {
+  const canvas = document.getElementById('radarChart');
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width / (window.devicePixelRatio || 1);
+  const scaleY = canvas.height / rect.height / (window.devicePixelRatio || 1);
+  // Chart.js usa coordenadas CSS (não multiplicadas por DPR) internamente
+  return {
+    x: (ev.clientX - rect.left),
+    y: (ev.clientY - rect.top)
+  };
+}
+
+function configurarDragRadar() {
+  const canvas = document.getElementById('radarChart');
+  if (!canvas || canvas._dragConfigured) return;
+  canvas._dragConfigured = true;
+
+  canvas.addEventListener('mousemove', ev => {
+    const { x, y } = coordsCanvas(ev);
+    if (radarDrag.active) {
+      radarDrag.mouseX = x; radarDrag.mouseY = y;
+      radarDrag.overIdx = rotuloMaisProximo(x, y, 60);
+      desenharOverlayDrag();
+    } else {
+      // hover: muda cursor se sobre um rótulo
+      const sobre = rotuloMaisProximo(x, y, 45);
+      canvas.classList.toggle('dragmode', sobre !== null);
+    }
+  });
+
+  canvas.addEventListener('mousedown', ev => {
+    const { x, y } = coordsCanvas(ev);
+    const idx = rotuloMaisProximo(x, y, 45);
+    if (idx !== null) {
+      ev.preventDefault();
+      radarDrag.active = true;
+      radarDrag.fromIdx = idx;
+      radarDrag.mouseX = x; radarDrag.mouseY = y;
+      canvas.classList.add('dragging-label');
+      document.getElementById('dragHint').classList.add('show');
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!radarDrag.active) return;
+    const from = radarDrag.fromIdx, to = radarDrag.overIdx;
+    radarDrag.active = false;
+    canvas.classList.remove('dragging-label');
+    document.getElementById('dragHint').classList.remove('show');
+    if (from !== null && to !== null && from !== to) {
+      // TROCA os dois eixos
+      const tmp = eixos[from]; eixos[from] = eixos[to]; eixos[to] = tmp;
+      renderAxisList();
+      salvarConfig();
+      renderRadar();
+      renderCards();
+    } else {
+      renderRadar(); // limpa overlay
+    }
+    radarDrag.fromIdx = radarDrag.overIdx = null;
+  });
+
+  // Cancela arrasto se sair pela janela
+  canvas.addEventListener('mouseleave', () => {
+    if (radarDrag.active && radarDrag.overIdx === null) desenharOverlayDrag();
+  });
+}
+
+// Desenha realce do rótulo de origem, alvo e linha de conexão
+function desenharOverlayDrag() {
+  if (!grafico || !radarDrag.active) return;
+  renderRadar(); // redesenha base limpa
+  const ctx2 = grafico.ctx;
+  const pos = getPosicoesRotulos();
+  const origem = pos.find(p => p.idx === radarDrag.fromIdx);
+  const alvo = radarDrag.overIdx !== null ? pos.find(p => p.idx === radarDrag.overIdx) : null;
+
+  ctx2.save();
+  // Linha tracejada do origem até o cursor
+  if (origem) {
+    ctx2.strokeStyle = 'rgba(46,125,50,0.5)';
+    ctx2.lineWidth = 2; ctx2.setLineDash([5, 4]);
+    ctx2.beginPath();
+    ctx2.moveTo(origem.x, origem.y);
+    ctx2.lineTo(radarDrag.mouseX, radarDrag.mouseY);
+    ctx2.stroke();
+    ctx2.setLineDash([]);
+    // Círculo na origem
+    ctx2.fillStyle = 'rgba(46,125,50,0.25)';
+    ctx2.beginPath(); ctx2.arc(origem.x, origem.y, 22, 0, 2*Math.PI); ctx2.fill();
+  }
+  // Realce do alvo
+  if (alvo && alvo.idx !== radarDrag.fromIdx) {
+    ctx2.fillStyle = 'rgba(249,168,37,0.35)';
+    ctx2.beginPath(); ctx2.arc(alvo.x, alvo.y, 26, 0, 2*Math.PI); ctx2.fill();
+    ctx2.strokeStyle = '#F9A825'; ctx2.lineWidth = 2.5;
+    ctx2.beginPath(); ctx2.arc(alvo.x, alvo.y, 26, 0, 2*Math.PI); ctx2.stroke();
+  }
+  // Bolinha seguindo o cursor
+  ctx2.fillStyle = '#2E7D32';
+  ctx2.beginPath(); ctx2.arc(radarDrag.mouseX, radarDrag.mouseY, 6, 0, 2*Math.PI); ctx2.fill();
+  ctx2.restore();
 }
 
 // ─── SCORE CARDS ─────────────────────────────────────────────
@@ -1277,7 +1566,7 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowRight' && sel.selectedIndex < sel.options.length-1) { sel.selectedIndex++; atualizar(); }
   else if (e.key.toLowerCase() === 'c') toggleComparacao();
   else if (e.key.toLowerCase() === 'p') abrirPodio();
-  else if (e.key === 'Escape') { fecharPodio(); fecharModalLote(); }
+  else if (e.key === 'Escape') { fecharPodio(); fecharModalLote(); fecharStudio(); }
 });
 
 // ─── COMPOSIÇÃO UNIFICADA DE PNG ─────────────────────────────
@@ -1294,24 +1583,37 @@ async function comporRadarPNG(opts) {
   const row = dados.find(r => r[cp] === pais);
   if (!row) return null;
   const valores = eixos.map(e => parseNum(row[e]));
+  const tema = TEMAS[temaAtual] || TEMAS.copa;
+
+  // Estilo: usa overrides do studio se fornecidos, senão padrões
+  const s = opts.estilo || {};
+  const fundoCor    = s.fundoCor    || '#FFFFFF';
+  const corTitulo   = s.corTitulo   || '#1B5E20';
+  const fonteTitulo = s.fonteTitulo || '"Barlow Condensed"';
+  const tamTitulo   = s.tamTitulo   || 6.2;   // em % do tam
+  const upper       = s.upper !== undefined ? s.upper : true;
+  const corRotulos  = s.corRotulos  || tema.label;
+  const curvos      = s.curvos !== undefined ? s.curvos : labelsCurvos;
+  const scoreBg     = s.scoreBg     || '#F9A825';
+  const scoreFg     = s.scoreFg     || '#1B5E20';
+  const scoreTam    = s.scoreTam    || 7.7;   // em % do tam
+  const fonteScore  = s.fonteScore  || '"Barlow Condensed"';
+  const scoreCorner = s.scoreCorner || 'br';
 
   // Canvas final quadrado
   const cv = document.createElement('canvas');
   cv.width = tam; cv.height = tam;
   const cx2 = cv.getContext('2d');
 
-  // Fundo
   if (!transparente) {
-    cx2.fillStyle = '#FFFFFF';
+    cx2.fillStyle = fundoCor;
     cx2.fillRect(0, 0, tam, tam);
   }
 
-  // Reserva de espaço: título no topo, badge embaixo
   const padTop = opts.mostrarTitulo ? tam * 0.13 : tam * 0.06;
   const padBottom = tam * 0.08;
   const padSide = tam * 0.06;
 
-  // Canvas interno só para o gráfico (quadrado, centralizado na área útil)
   const chartArea = Math.min(tam - padSide * 2, tam - padTop - padBottom);
   const chartCv = document.createElement('canvas');
   chartCv.width = chartArea; chartCv.height = chartArea;
@@ -1320,13 +1622,20 @@ async function comporRadarPNG(opts) {
   const fLabel = Math.max(11, Math.round(chartArea / 26));
   const fTick  = Math.max(8, Math.round(chartArea / 42));
 
+  // Aplica overrides do plugin de rótulos curvos
+  const prevCor = window._corRotulosOverride, prevFonte = window._fonteRotulosOverride, prevCurvos = labelsCurvos;
+  window._corRotulosOverride = corRotulos;
+  window._fonteRotulosOverride = fonteTitulo;
+  const curvosBackup = labelsCurvos;
+  labelsCurvos = curvos;
+
   const tmp = new Chart(chartCtx, {
     type: 'radar',
     data: {
       labels: eixos,
       datasets: [{
         data: valores,
-        backgroundColor: hexRgba(opts.cf, opts.al),
+        backgroundColor: opts.usarGradiente ? (ctx2 => criarGradiente(ctx2, opts.cf, opts.al)) : hexRgba(opts.cf, opts.al),
         borderColor: opts.cl, borderWidth: opts.bw,
         pointBackgroundColor: opts.cl, pointBorderColor: '#fff',
         pointRadius: opts.pr
@@ -1334,101 +1643,104 @@ async function comporRadarPNG(opts) {
     },
     options: {
       animation: false, responsive: false, devicePixelRatio: 1,
-      layout: { padding: chartArea * 0.13 }, // espaço p/ rótulos não cortarem
+      layout: { padding: chartArea * (curvos ? 0.16 : 0.12) },
       plugins: { legend: { display: false } },
       scales: {
         r: {
           min: 0, max: 100,
-          angleLines: { color: '#E5E7EB' },
-          grid: { color: '#E5E7EB' },
+          angleLines: { color: tema.angle },
+          grid: { color: tema.grid },
           pointLabels: {
-            display: !labelsCurvos,
-            font: { size: fLabel, weight: '700', family: 'Barlow Condensed' },
-            color: '#1B5E20'
+            display: !curvos,
+            font: { size: fLabel, weight: '700', family: fonteTitulo.replace(/"/g,'') },
+            color: corRotulos
           },
-          ticks: { stepSize: 20, backdropColor: 'transparent', color: '#9CA3AF', font: { size: fTick } }
+          ticks: { stepSize: 20, backdropColor: 'transparent', color: tema.tick, font: { size: fTick } }
         }
       }
     }
   });
 
-  // Força o desenho síncrono (animation:false garante render imediato,
-  // incluindo o plugin afterDraw dos rótulos curvos)
   tmp.draw();
   await new Promise(r => requestAnimationFrame(r));
 
-  // Cola o gráfico centralizado horizontalmente, abaixo do título
   const gx = (tam - chartArea) / 2;
   const gy = padTop;
   cx2.drawImage(chartCv, gx, gy);
   tmp.destroy();
 
-  // ── TÍTULO (nome do país) ──
+  // Restaura overrides
+  window._corRotulosOverride = prevCor;
+  window._fonteRotulosOverride = prevFonte;
+  labelsCurvos = curvosBackup;
+
+  // ── TÍTULO ──
   if (opts.mostrarTitulo) {
-    const fT = Math.round(tam / 16);
-    cx2.font = `700 ${fT}px "Barlow Condensed",sans-serif`;
-    cx2.fillStyle = '#1B5E20';
+    const fT = Math.round(tam * tamTitulo / 100);
+    cx2.font = `700 ${fT}px ${fonteTitulo},sans-serif`;
+    cx2.fillStyle = corTitulo;
     cx2.textAlign = 'center';
     cx2.textBaseline = 'middle';
-    cx2.fillText(pais.toUpperCase(), tam / 2, padTop / 2);
+    cx2.fillText(upper ? pais.toUpperCase() : pais, tam / 2, padTop / 2);
   }
 
-  // ── BADGE DE SCORE ──
+  // ── BADGE DE SCORE (posição configurável) ──
   const mc = colunas.find(col => /m[eé]dia|geral/i.test(col));
   const score = mc ? parseNum(row[mc]) : null;
   if (opts.mostrarScore && score !== null) {
-    const fScore = Math.round(tam / 13);
+    const fScore = Math.round(tam * scoreTam / 100);
     const fDenom = Math.round(fScore * 0.34);
-    cx2.font = `700 ${fScore}px "Barlow Condensed",sans-serif`;
     const scoreStr = score.toFixed(1);
+    cx2.font = `700 ${fScore}px ${fonteScore},sans-serif`;
     const numW = cx2.measureText(scoreStr).width;
     cx2.font = `600 ${fDenom}px Inter,sans-serif`;
-    const denomW = cx2.measureText('/100').width;
+    const denomW = cx2.measureText('/ 100').width;
     const innerW = Math.max(numW, denomW);
     const padBadge = tam * 0.02;
     const bw2 = innerW + padBadge * 2;
     const bh2 = fScore * 1.05 + fDenom * 1.1 + padBadge * 1.4;
-    const bx = tam - padSide - bw2;
-    const by = tam - padBottom - bh2;
 
-    // Caixa dourada com cantos arredondados
-    cx2.fillStyle = '#F9A825';
+    // Posição conforme corner
+    let bx, by;
+    if (scoreCorner === 'tl') { bx = padSide; by = padTop; }
+    else if (scoreCorner === 'tr') { bx = tam - padSide - bw2; by = padTop; }
+    else if (scoreCorner === 'bl') { bx = padSide; by = tam - padBottom - bh2; }
+    else { bx = tam - padSide - bw2; by = tam - padBottom - bh2; } // br
+
+    cx2.fillStyle = scoreBg;
     cx2.beginPath();
     cx2.roundRect(bx, by, bw2, bh2, tam * 0.018);
     cx2.fill();
 
-    // Número grande
-    cx2.font = `700 ${fScore}px "Barlow Condensed",sans-serif`;
-    cx2.fillStyle = '#1B5E20';
+    cx2.font = `700 ${fScore}px ${fonteScore},sans-serif`;
+    cx2.fillStyle = scoreFg;
     cx2.textAlign = 'center';
     cx2.textBaseline = 'middle';
     cx2.fillText(scoreStr, bx + bw2/2, by + padBadge + fScore * 0.52);
 
-    // "/ 100" abaixo
     cx2.font = `600 ${fDenom}px Inter,sans-serif`;
-    cx2.fillStyle = 'rgba(27,94,32,0.7)';
+    cx2.fillStyle = hexRgba(scoreFg, 0.7);
     cx2.fillText('/ 100', bx + bw2/2, by + padBadge + fScore * 1.05 + fDenom * 0.55);
   }
 
-  // ── RANKING ──
+  // ── RANKING (canto oposto ao score) ──
   if (opts.mostrarPos) {
     const rank = calcularRanking(pais);
     if (rank) {
       const fR = Math.round(tam / 18);
-      cx2.font = `700 ${fR}px "Barlow Condensed",sans-serif`;
-      cx2.textAlign = 'left';
-      cx2.textBaseline = 'bottom';
-      // Badge circular
-      const cxR = padSide + fR * 0.9;
-      const cyR = tam - padBottom - fR * 0.6;
-      cx2.fillStyle = '#1B5E20';
+      // Posição: canto inferior esquerdo se score não estiver lá, senão inferior direito
+      const rankCorner = (scoreCorner === 'bl') ? 'br' : 'bl';
+      let cxR, cyR;
+      if (rankCorner === 'bl') { cxR = padSide + fR * 0.9; cyR = tam - padBottom - fR * 0.6; }
+      else { cxR = tam - padSide - fR * 0.9; cyR = tam - padBottom - fR * 0.6; }
+      cx2.fillStyle = corTitulo;
       cx2.beginPath();
       cx2.arc(cxR, cyR - fR * 0.3, fR * 0.95, 0, 2 * Math.PI);
       cx2.fill();
       cx2.fillStyle = '#FFFFFF';
       cx2.textAlign = 'center';
       cx2.textBaseline = 'middle';
-      cx2.font = `700 ${Math.round(fR * 0.7)}px "Barlow Condensed",sans-serif`;
+      cx2.font = `700 ${Math.round(fR * 0.7)}px ${fonteTitulo},sans-serif`;
       cx2.fillText(`${rank}º`, cxR, cyR - fR * 0.3);
     }
   }
@@ -1436,37 +1748,128 @@ async function comporRadarPNG(opts) {
   return cv;
 }
 
-// ─── PNG EXPORT INDIVIDUAL ───────────────────────────────────
-async function exportarPNG() {
-  if (!grafico) return;
-  const p1 = document.getElementById('pais1').value;
-  const slug = p1.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-                  .toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+// ─── EXPORT STUDIO ───────────────────────────────────────────
+const FONTES_DISPONIVEIS = [
+  { v: '"Barlow Condensed"', n: 'Barlow Condensed (esportiva)' },
+  { v: '"Anton"', n: 'Anton (impacto)' },
+  { v: '"Bebas Neue"', n: 'Bebas Neue (condensada)' },
+  { v: '"Oswald"', n: 'Oswald (moderna)' },
+  { v: '"Archivo Black"', n: 'Archivo Black (pesada)' },
+  { v: '"Poppins"', n: 'Poppins (geométrica)' },
+  { v: '"Montserrat"', n: 'Montserrat (clean)' },
+  { v: '"Playfair Display"', n: 'Playfair (serifada elegante)' },
+  { v: '"Inter"', n: 'Inter (neutra)' },
+  { v: '"Roboto Mono"', n: 'Roboto Mono (monoespaçada)' }
+];
+let studioCorner = 'br';
 
-  // Cores (respeita modo bandeira)
+function abrirStudio() {
+  if (!dados.length || !grafico) return;
+  // Popula selects de fonte (uma vez)
+  ['exFonteTitulo','exFonteScore'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel.options.length === 0) {
+      FONTES_DISPONIVEIS.forEach(f => sel.appendChild(new Option(f.n, f.v)));
+    }
+  });
+  // Sincroniza cor de fundo do tema atual no campo
+  const tema = TEMAS[temaAtual] || TEMAS.copa;
+  document.getElementById('exFundoCor').value = tema.fundoCanvas;
+  document.getElementById('exCorRotulos').value = tema.label;
+  document.getElementById('exCurvos').classList.toggle('on', labelsCurvos);
+  document.getElementById('modalStudio').classList.add('open');
+  renderStudio();
+}
+
+function fecharStudio() {
+  document.getElementById('modalStudio').classList.remove('open');
+}
+
+function toggleStudio(qual) {
+  const map = { transparente:'exTransp', nome:'exNome', upper:'exUpper', curvos:'exCurvos', score:'exScore', pos:'exPos' };
+  const el = document.getElementById(map[qual]);
+  el.classList.toggle('on');
+  renderStudio();
+}
+
+function setCorner(corner) {
+  studioCorner = corner;
+  document.querySelectorAll('.corner-btn').forEach(b => b.classList.toggle('on', b.dataset.corner === corner));
+  renderStudio();
+}
+
+function lerEstiloStudio() {
+  return {
+    fundoCor:    document.getElementById('exFundoCor').value,
+    corTitulo:   document.getElementById('exCorTitulo').value,
+    fonteTitulo: document.getElementById('exFonteTitulo').value,
+    tamTitulo:   parseFloat(document.getElementById('exTamTitulo').value),
+    upper:       document.getElementById('exUpper').classList.contains('on'),
+    corRotulos:  document.getElementById('exCorRotulos').value,
+    curvos:      document.getElementById('exCurvos').classList.contains('on'),
+    scoreBg:     document.getElementById('exScoreBg').value,
+    scoreFg:     document.getElementById('exScoreFg').value,
+    scoreTam:    parseFloat(document.getElementById('exScoreTam').value),
+    fonteScore:  document.getElementById('exFonteScore').value,
+    scoreCorner: studioCorner
+  };
+}
+
+async function gerarCanvasStudio(tam) {
+  const p1 = document.getElementById('pais1').value;
   let cl = document.getElementById('cLinha').value;
   let cf = document.getElementById('cFundo').value;
-  if (modoBandeira) {
-    const b = getCorBandeira(p1);
-    if (b) { cl = b.c1; cf = b.c2; }
-  }
+  if (modoBandeira) { const b = getCorBandeira(p1); if (b) { cl = b.c1; cf = b.c2; } }
 
-  const cv = await comporRadarPNG({
-    pais: p1, tam: 1000, transparente: false,
-    mostrarScore: document.getElementById('expScore')?.checked,
-    mostrarPos:   document.getElementById('expPos')?.checked,
-    mostrarTitulo: true,
+  return await comporRadarPNG({
+    pais: p1, tam, transparente: document.getElementById('exTransp').classList.contains('on'),
+    mostrarTitulo: document.getElementById('exNome').classList.contains('on'),
+    mostrarScore:  document.getElementById('exScore').classList.contains('on'),
+    mostrarPos:    document.getElementById('exPos').classList.contains('on'),
     cl, cf,
     al: parseFloat(document.getElementById('rOpacity').value),
     bw: parseInt(document.getElementById('rEsp').value),
-    pr: parseInt(document.getElementById('rPt').value)
+    pr: parseInt(document.getElementById('rPt').value),
+    usarGradiente: usarGradiente,
+    estilo: lerEstiloStudio()
   });
-  if (!cv) return;
+}
 
+let studioRenderPending = false;
+async function renderStudio() {
+  if (studioRenderPending) return;
+  studioRenderPending = true;
+  await new Promise(r => setTimeout(r, 30));
+  studioRenderPending = false;
+  const previewTam = 520;
+  const cv = await gerarCanvasStudio(previewTam);
+  if (!cv) return;
+  const target = document.getElementById('studioCanvas');
+  target.width = previewTam; target.height = previewTam;
+  const tctx = target.getContext('2d');
+  tctx.clearRect(0,0,previewTam,previewTam);
+  tctx.drawImage(cv, 0, 0);
+}
+
+async function baixarStudio() {
+  const tam = parseInt(document.getElementById('exResolucao').value);
+  const btn = event.target;
+  btn.textContent = 'Gerando…'; btn.disabled = true;
+  const cv = await gerarCanvasStudio(tam);
+  btn.textContent = '📥 Baixar PNG'; btn.disabled = false;
+  if (!cv) return;
+  const p1 = document.getElementById('pais1').value;
+  const slug = p1.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+                  .toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
   const a = document.createElement('a');
   a.download = `radar_copa_${slug}.png`;
   a.href = cv.toDataURL('image/png');
   a.click();
+}
+
+// exportarPNG agora abre o estúdio (mantém nome p/ compatibilidade do botão)
+function exportarPNG() {
+  abrirStudio();
 }
 
 // ─── BATCH EXPORT ────────────────────────────────────────────
@@ -1632,6 +2035,140 @@ async function exportarLote() {
       <div style="display:flex;gap:8px;">
         <button class="btn btn-outline" style="width:auto;padding:7px 14px;" onclick="fecharModalLote()">Cancelar</button>
         <button class="btn btn-primary" style="width:auto;padding:7px 14px;" id="btnZip" onclick="exportarLote()">📥 Baixar ZIP</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EXPORT STUDIO -->
+<div class="modal-overlay" id="modalStudio">
+  <div class="modal studio">
+    <div class="modal-head studio-head">
+      <h3>🎬 Estúdio de Exportação</h3>
+      <button class="modal-close" onclick="fecharStudio()" title="Fechar">✕</button>
+    </div>
+
+    <!-- PREVIEW -->
+    <div class="studio-preview">
+      <canvas id="studioCanvas"></canvas>
+    </div>
+
+    <!-- CONTROLES -->
+    <div class="studio-controls">
+      <!-- Fundo -->
+      <div class="ctrl-group">
+        <div class="ctrl-group-title">🖼️ Fundo</div>
+        <div class="ctrl-row">
+          <label>Transparente</label>
+          <div class="mini-switch" id="exTransp" onclick="toggleStudio('transparente')"></div>
+        </div>
+        <div class="ctrl-row">
+          <label>Cor do fundo</label>
+          <input type="color" id="exFundoCor" value="#FFFFFF" oninput="renderStudio()">
+        </div>
+      </div>
+
+      <!-- Título -->
+      <div class="ctrl-group">
+        <div class="ctrl-group-title">🔤 Nome do País</div>
+        <div class="ctrl-row">
+          <label>Mostrar nome</label>
+          <div class="mini-switch on" id="exNome" onclick="toggleStudio('nome')"></div>
+        </div>
+        <div class="ctrl-row">
+          <label>Fonte</label>
+          <select id="exFonteTitulo" onchange="renderStudio()"></select>
+        </div>
+        <div class="ctrl-row">
+          <label>Cor</label>
+          <input type="color" id="exCorTitulo" value="#1B5E20" oninput="renderStudio()">
+        </div>
+        <div class="ctrl-row">
+          <label>Tamanho</label>
+          <input type="range" id="exTamTitulo" min="3" max="10" step="0.5" value="6.2" oninput="renderStudio()">
+        </div>
+        <div class="ctrl-row">
+          <label>Maiúsculas</label>
+          <div class="mini-switch on" id="exUpper" onclick="toggleStudio('upper')"></div>
+        </div>
+      </div>
+
+      <!-- Rótulos dos eixos -->
+      <div class="ctrl-group">
+        <div class="ctrl-group-title">🏷️ Rótulos dos Eixos</div>
+        <div class="ctrl-row">
+          <label>Cor dos rótulos</label>
+          <input type="color" id="exCorRotulos" value="#1B5E20" oninput="renderStudio()">
+        </div>
+        <div class="ctrl-row">
+          <label>Rótulos curvos</label>
+          <div class="mini-switch" id="exCurvos" onclick="toggleStudio('curvos')"></div>
+        </div>
+      </div>
+
+      <!-- Score -->
+      <div class="ctrl-group">
+        <div class="ctrl-group-title">🏆 Badge de Score</div>
+        <div class="ctrl-row">
+          <label>Mostrar score</label>
+          <div class="mini-switch on" id="exScore" onclick="toggleStudio('score')"></div>
+        </div>
+        <div class="ctrl-row">
+          <label>Posição</label>
+          <div class="corner-grid">
+            <button class="corner-btn" data-corner="tl" onclick="setCorner('tl')">↖</button>
+            <button class="corner-btn" data-corner="tr" onclick="setCorner('tr')">↗</button>
+            <button class="corner-btn" data-corner="bl" onclick="setCorner('bl')">↙</button>
+            <button class="corner-btn on" data-corner="br" onclick="setCorner('br')">↘</button>
+          </div>
+        </div>
+        <div class="ctrl-row">
+          <label>Cor da caixa</label>
+          <input type="color" id="exScoreBg" value="#F9A825" oninput="renderStudio()">
+        </div>
+        <div class="ctrl-row">
+          <label>Cor do número</label>
+          <input type="color" id="exScoreFg" value="#1B5E20" oninput="renderStudio()">
+        </div>
+        <div class="ctrl-row">
+          <label>Tamanho</label>
+          <input type="range" id="exScoreTam" min="6" max="16" step="0.5" value="9" oninput="renderStudio()">
+        </div>
+        <div class="ctrl-row">
+          <label>Fonte</label>
+          <select id="exFonteScore" onchange="renderStudio()"></select>
+        </div>
+      </div>
+
+      <!-- Ranking -->
+      <div class="ctrl-group">
+        <div class="ctrl-group-title">🏅 Posição (Ranking)</div>
+        <div class="ctrl-row">
+          <label>Mostrar posição</label>
+          <div class="mini-switch" id="exPos" onclick="toggleStudio('pos')"></div>
+        </div>
+      </div>
+
+      <!-- Resolução -->
+      <div class="ctrl-group">
+        <div class="ctrl-group-title">📐 Resolução</div>
+        <div class="ctrl-row">
+          <label>Tamanho do PNG</label>
+          <select id="exResolucao" onchange="renderStudio()">
+            <option value="800">800 × 800</option>
+            <option value="1000" selected>1000 × 1000</option>
+            <option value="1500">1500 × 1500 (HD)</option>
+            <option value="2000">2000 × 2000 (4K)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-foot studio-foot">
+      <span style="font-size:11px;color:var(--muted);" id="studioInfo">Preview ao vivo — ajuste e baixe</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline" style="width:auto;padding:8px 16px;" onclick="fecharStudio()">Cancelar</button>
+        <button class="btn btn-primary" style="width:auto;padding:8px 20px;" onclick="baixarStudio()">📥 Baixar PNG</button>
       </div>
     </div>
   </div>
