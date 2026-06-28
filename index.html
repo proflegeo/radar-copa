@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Copa da Geografia 2026 — Radar Interativo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;1,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --g900: #1B5E20; --g700: #2E7D32; --g500: #43A047; --g100: #E8F5E9;
+      --gold: #F9A825; --gold-bg: #FFF8E1;
+      --navy: #1A237E; --navy-light: #3949AB;
+      --text: #1F2937; --muted: #5B6472; --border: #E5E7EB;
+      --surface: #F8FAFB; --white: #FFFFFF;
+      --sidebar: 340px; --header: 52px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Acessibilidade: foco visível em todos os interativos */
+    button:focus-visible, select:focus-visible, input:focus-visible,
+    .switch:focus-visible, .tema-btn:focus-visible {
+      outline: 3px solid #2563EB; outline-offset: 2px; border-radius: 4px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--surface);
+      color: var(--text);
+      display: grid;
+      grid-template-rows: var(--header) 1fr;
+      grid-template-columns: var(--sidebar) 1fr;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── HEADER ─────────────────────────────────────── */
+    header {
+      grid-column: 1 / -1;
+      background: var(--g900);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 20px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .brand-badge {
+      background: var(--gold); color: var(--g900);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 100px;
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .kb-hint { font-size: 11px; color: rgba(255,255,255,0.55); }
+    .kb-hint kbd {
+      background: rgba(255,255,255,0.15); border-radius: 3px;
+      padding: 1px 5px; font-size: 10px; font-family: monospace; color: white;
+    }
+
+    /* ── SIDEBAR ─────────────────────────────────────── */
+    aside {
+      background: var(--white); border-right: 1px solid var(--border);
+      overflow-y: auto; padding: 14px; display: flex;
+      flex-direction: column; gap: 14px;
+    }
+    .sec-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--muted); margin-bottom: 8px;
+    }
+    .card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+    .form-row { margin-bottom: 10px; }
+    .form-row:last-child { margin-bottom: 0; }
+    label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+    input[type="text"], textarea, select {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--border);
+      border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif;
+      color: var(--text); background: var(--white); outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--g500); }
+    .btn {
+      display: block; width: 100%; padding: 8px 12px; border: none;
+      border-radius: 6px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
+      text-align: center;
+    }
+    .btn-primary { background: var(--g700); color: white; }
+    .btn-primary:hover { background: var(--g900); }
+    .btn-secondary { background: #4B5563; color: white; }
+    .btn-secondary:hover { background: #374151; }
+    .btn-outline { background: transparent; border: 1px solid var(--g700); color: var(--g700); }
+    .btn-outline:hover { background: var(--g100); }
+    .btn-compare-on { background: var(--navy); color: white; border: none; }
+    .btn-compare-on:hover { background: #283593; }
+    .or-sep { text-align: center; font-size: 10px; color: var(--muted); font-weight: 600; margin: 8px 0; }
+    .status { font-size: 11px; font-weight: 500; margin-top: 4px; min-height: 15px; color: var(--g500); }
+    .status.err { color: #DC2626; }
+
+    /* Axis list */
+    .axis-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .axis-num { font-size: 10px; color: var(--muted); width: 18px; text-align: right; font-weight: 700; flex-shrink: 0; }
+    .axis-row select { flex: 1; padding: 5px 6px; font-size: 12px; }
+    .btn-rm { background: none; border: none; cursor: pointer; font-size: 11px; padding: 2px 4px; color: var(--muted); flex-shrink: 0; }
+    .btn-rm:hover { color: #DC2626; }
+    .btn-add { background: none; border: 1px dashed var(--g500); color: var(--g500); font-size: 12px; font-weight: 600; padding: 5px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 6px; }
+    .btn-add:hover { background: var(--g100); }
+
+    /* Design controls */
+    .design-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .design-col { flex: 1; }
+    input[type="color"] { width: 100%; height: 30px; padding: 2px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
+    input[type="range"] { width: 100%; accent-color: var(--g700); }
+    input[type="file"] { display: none; }
+
+    /* ── MODAL LOTE ──────────────────── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55); z-index: 1000;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: white; border-radius: 12px; width: 540px;
+      max-height: 82vh; display: flex; flex-direction: column;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.22); overflow: hidden;
+    }
+    .modal-head {
+      padding: 18px 20px 14px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-head h3 {
+      font-family: 'Barlow Condensed', sans-serif; font-size: 20px;
+      font-weight: 700; color: var(--g900); text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .modal-close {
+      background: none; border: none; font-size: 18px;
+      cursor: pointer; color: var(--muted); padding: 2px 6px; line-height: 1;
+    }
+    .modal-close:hover { color: var(--text); }
+    .modal-opts {
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+      display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap;
+    }
+    .modal-opts label { font-size: 11px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 6px; }
+    .radio-row { display: flex; gap: 14px; }
+    .radio-row label { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 400; color: var(--text); cursor: pointer; }
+    .radio-row input { accent-color: var(--g700); }
+    .modal-body { padding: 12px 20px 8px; flex: 1; overflow-y: auto; }
+    .modal-actions-top {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+    .modal-actions-top span { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .selecao-btns { display: flex; gap: 6px; }
+    .selecao-btns button {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 4px;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+    .selecao-btns button:hover { border-color: var(--g500); color: var(--g700); background: var(--g100); }
+    .country-grid-modal {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+    }
+    .ccheck {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 6px; border-radius: 4px; cursor: pointer;
+    }
+    .ccheck:hover { background: var(--g100); }
+    .ccheck input { accent-color: var(--g700); cursor: pointer; flex-shrink: 0; }
+    .ccheck span { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .modal-foot {
+      padding: 12px 20px; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    }
+    .prog-wrap { padding: 0 20px 14px; display: none; }
+    .prog-label { font-size: 11px; color: var(--muted); margin-bottom: 5px; text-align: center; }
+    .prog-bg { background: var(--border); border-radius: 100px; height: 6px; overflow: hidden; }
+    .prog-fill { height: 100%; background: var(--g500); border-radius: 100px; width: 0%; transition: width 0.2s; }
+
+    /* Pódio */
+    .podio-item {
+      display: flex; align-items: center; gap: 12px; padding: 9px 12px;
+      border-radius: 8px; margin-bottom: 5px; transition: background 0.15s;
+    }
+    .podio-item:hover { background: var(--surface); }
+    .podio-rank {
+      font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700;
+      width: 36px; text-align: center; flex-shrink: 0;
+    }
+    .podio-1 { background: linear-gradient(90deg, #FFF8E1, transparent); }
+    .podio-1 .podio-rank { color: #F9A825; }
+    .podio-2 { background: linear-gradient(90deg, #F5F5F5, transparent); }
+    .podio-2 .podio-rank { color: #9CA3AF; }
+    .podio-3 { background: linear-gradient(90deg, #FBEEE6, transparent); }
+    .podio-3 .podio-rank { color: #B45309; }
+    .podio-nome { flex: 1; font-size: 14px; font-weight: 500; }
+    .podio-bar-wrap { flex: 2; height: 8px; background: var(--border); border-radius: 100px; overflow: hidden; }
+    .podio-bar { height: 100%; border-radius: 100px; transition: width 0.6s cubic-bezier(0.34,1.2,0.64,1); }
+    .podio-val { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700; width: 48px; text-align: right; color: var(--g700); }
+    .podio-destaque { font-size: 11px; color: var(--muted); padding: 8px 12px; background: var(--g100); border-radius: 6px; margin-bottom: 10px; }
+    .file-label {
+      display: block; width: 100%; padding: 8px 12px; margin-top: 4px;
+      border: 1px dashed var(--border); border-radius: 6px;
+      font-size: 12px; font-weight: 600; color: var(--g700);
+      cursor: pointer; text-align: center; background: var(--g100);
+      transition: background 0.15s;
+    }
+    .file-label:hover { background: #C8E6C9; }
+    .range-label { display: flex; justify-content: space-between; align-items: center; }
+    .range-label span { font-size: 10px; color: var(--muted); font-weight: 600; }
+
+    /* ── MAIN ─────────────────────────────────────────── */
+    main {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      overflow: hidden;
+      padding: 16px 20px 16px 20px;
+      gap: 12px;
+    }
+
+    /* Top bar */
+    .top-bar { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+    .country-display { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .cname1 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 30px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.02em; color: var(--g900); line-height: 1;
+    }
+    .cname2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 30px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.02em; color: var(--navy); line-height: 1;
+    }
+    .vs-sep { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; color: var(--muted); }
+    .score-badge {
+      display: none;
+      background: var(--gold-bg); border: 1px solid var(--gold);
+      border-radius: 8px; padding: 4px 12px;
+      align-items: baseline; gap: 4px;
+    }
+    .score-badge.visible { display: flex; }
+    .score-num { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 700; color: var(--g900); }
+    .score-denom { font-size: 11px; color: var(--muted); }
+    .top-actions { display: flex; gap: 8px; }
+    .btn-dl {
+      background: var(--g900); color: white; border: none;
+      padding: 8px 16px; border-radius: 6px; font-size: 12px;
+      font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: background 0.15s;
+    }
+    .btn-dl:hover { background: var(--g700); }
+
+    /* Chart container */
+    #chartWrap { position: relative; width: 100%; height: 100%; min-height: 0; }
+    #radarChart { display: none; width: 100% !important; height: 100% !important; }
+    .awaiting {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px; color: var(--muted); text-align: center;
+    }
+    .awaiting-icon { font-size: 48px; opacity: 0.5; }
+    .awaiting h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; color: var(--muted); }
+    .awaiting p { font-size: 13px; max-width: 320px; }
+
+    /* Score grid */
+    #scoreGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .scard {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 8px; padding: 9px 11px 12px;
+      position: relative; overflow: hidden;
+    }
+    .scard-name { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 3px; }
+    .scard-val { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; line-height: 1; }
+    .scard-compare { display: flex; align-items: baseline; gap: 6px; }
+    .sv1 { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; color: var(--g700); line-height: 1; }
+    .svsep { font-size: 11px; color: var(--muted); }
+    .sv2 { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; color: var(--navy); line-height: 1; }
+    .sbar-bg { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--border); }
+    .sbar-fill { height: 100%; width: 0%; transition: width 0.5s cubic-bezier(0.34, 1.3, 0.64, 1); border-radius: 2px; }
+
+    /* Toggle buttons row */
+    .toggle-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .btn-toggle {
+      flex: 1; padding: 7px 8px; border-radius: 6px; font-size: 11px;
+      font-weight: 600; cursor: pointer; transition: all 0.15s;
+      font-family: 'Inter', sans-serif; border: 1px solid var(--border);
+      background: var(--surface); color: var(--muted); text-align: center;
+    }
+    .btn-toggle.on { background: var(--g100); border-color: var(--g500); color: var(--g700); }
+    .btn-toggle.bandeira-on { border-color: var(--gold); background: var(--gold-bg); color: #92400E; }
+
+    /* Export options row */
+    .export-opts { display: flex; gap: 12px; align-items: center; font-size: 11px; }
+    .export-opts label { display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--muted); font-weight: 500; }
+    .export-opts input { accent-color: var(--g700); }
+
+    /* Tema grid */
+    .tema-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .tema-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 8px 4px; border: 1.5px solid var(--border); border-radius: 8px;
+      background: var(--white); cursor: pointer; transition: all 0.15s;
+      font-family: 'Inter', sans-serif;
+    }
+    .tema-btn:hover { border-color: var(--g500); transform: translateY(-1px); }
+    .tema-btn.on { border-color: var(--g700); background: var(--g100); box-shadow: 0 2px 6px rgba(46,125,50,0.15); }
+    .tema-btn .ti { font-size: 18px; }
+    .tema-btn .tn { font-size: 10px; font-weight: 600; color: var(--muted); }
+    .tema-btn.on .tn { color: var(--g700); }
+
+    /* Switch toggles */
+    .switch-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 0; border-bottom: 1px solid #F3F4F6;
+    }
+    .switch-row:last-child { border-bottom: none; }
+    .switch-label { font-size: 12px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .switch-label .si { font-size: 14px; }
+    .switch {
+      position: relative; width: 38px; height: 21px; flex-shrink: 0;
+      background: var(--border); border-radius: 100px; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .switch.on { background: var(--g500); }
+    .switch::after {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 17px; height: 17px; background: white; border-radius: 50%;
+      transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .switch.on::after { transform: translateX(17px); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span style="font-size:22px">🌍</span>
+    <span class="brand-title">Copa da Geografia 2026</span>
+    <span class="brand-badge">Radar Interativo</span>
+  </div>
+  <span class="kb-hint"><kbd>←</kbd> <kbd>→</kbd> navegar &nbsp;|&nbsp; <kbd>C</kbd> comparar &nbsp;|&nbsp; <kbd>P</kbd> pódio</span>
+</header>
+
+<aside>
+
+  <!-- DADOS -->
+  <div>
+    <div class="sec-title">📊 Entrada de Dados</div>
+    <div class="card">
+      <div class="form-row">
+        <label>Opção A — Link publicado do Google Sheets</label>
+        <input type="text" id="csvUrl" placeholder="Cole o link publicado aqui...">
+        <button class="btn btn-primary" style="margin-top:6px" onclick="conectarPlanilha()">Conectar via Link</button>
+        <div id="statusMsg" class="status"></div>
+      </div>
+      <div class="or-sep">— OU —</div>
+      <div class="form-row">
+        <label>Opção B — Colar dados (Tab-separado, da aba Grafico_Radar)</label>
+        <textarea id="txtDados" rows="3" placeholder="Copie as colunas da planilha e cole aqui..."></textarea>
+        <button class="btn btn-secondary" style="margin-top:6px" onclick="carregarManual()">Processar Texto Colado</button>
+      </div>
+      <div class="or-sep">— OU —</div>
+      <div class="form-row">
+        <label>Opção C — Carregar arquivo TSV/CSV do computador</label>
+        <label class="file-label" for="fileInput">📂 Escolher arquivo .tsv ou .csv</label>
+        <input type="file" id="fileInput" accept=".tsv,.csv,.txt" onchange="carregarArquivo(this)">
+        <div id="statusArquivo" class="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAÍSES -->
+  <div>
+    <div class="sec-title">🌐 Países</div>
+    <div class="card">
+      <div class="form-row">
+        <label>Coluna "País" no CSV</label>
+        <select id="colPais" onchange="mapearColunas()"><option>Carregue dados primeiro...</option></select>
+      </div>
+      <div class="form-row">
+        <label>País Principal</label>
+        <select id="pais1" onchange="atualizar()"><option>—</option></select>
+      </div>
+      <div class="form-row" id="pais2Row" style="display:none">
+        <label>Comparar com</label>
+        <select id="pais2" onchange="atualizar()"><option>—</option></select>
+      </div>
+      <button id="btnCompare" class="btn btn-outline" onclick="toggleComparacao()">⚡ Modo Comparação</button>
+    </div>
+  </div>
+
+  <!-- EIXOS -->
+  <div>
+    <div class="sec-title">🗺️ Eixos do Radar</div>
+    <div class="card">
+      <div id="listaEixos" style="max-height:200px;overflow-y:auto;"></div>
+      <button class="btn-add" onclick="addEixo()">+ Adicionar Eixo</button>
+    </div>
+  </div>
+
+  <!-- TEMAS -->
+  <div>
+    <div class="sec-title">🎭 Temas Visuais</div>
+    <div class="card">
+      <div class="tema-grid" id="temaGrid">
+        <button class="tema-btn on" data-tema="copa" onclick="aplicarTema('copa')"><span class="ti">🏆</span><span class="tn">Copa</span></button>
+        <button class="tema-btn" data-tema="escuro" onclick="aplicarTema('escuro')"><span class="ti">🌙</span><span class="tn">Escuro</span></button>
+        <button class="tema-btn" data-tema="jornal" onclick="aplicarTema('jornal')"><span class="ti">📰</span><span class="tn">Jornal</span></button>
+        <button class="tema-btn" data-tema="vibrante" onclick="aplicarTema('vibrante')"><span class="ti">🎨</span><span class="tn">Vibrante</span></button>
+        <button class="tema-btn" data-tema="oceano" onclick="aplicarTema('oceano')"><span class="ti">🌊</span><span class="tn">Oceano</span></button>
+        <button class="tema-btn" data-tema="terra" onclick="aplicarTema('terra')"><span class="ti">🏜️</span><span class="tn">Terra</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAMADAS PEDAGÓGICAS -->
+  <div>
+    <div class="sec-title">🌍 Camadas de Análise</div>
+    <div class="card">
+      <div class="switch-row">
+        <span class="switch-label"><span class="si">📊</span> Média Mundial</span>
+        <div class="switch" id="swMedia" role="switch" tabindex="0" aria-label="Mostrar média mundial" onclick="toggleMedia()" onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();toggleMedia();}"></div>
+      </div>
+      <div class="switch-row">
+        <span class="switch-label"><span class="si">⭐</span> Destacar Líderes</span>
+        <div class="switch" id="swDestaque" role="switch" tabindex="0" aria-label="Destacar líderes mundiais" onclick="toggleDestaques()" onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();toggleDestaques();}"></div>
+      </div>
+      <div class="switch-row">
+        <span class="switch-label"><span class="si">🌈</span> Preenchimento Gradiente</span>
+        <div class="switch" id="swGradiente" role="switch" tabindex="0" aria-label="Usar preenchimento gradiente" onclick="toggleGradiente()" onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();toggleGradiente();}"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DESIGN -->
+  <div>
+    <div class="sec-title">🎨 Cores & Linhas</div>
+    <div class="card">
+      <div class="design-row">
+        <div class="design-col">
+          <label>Borda</label>
+          <input type="color" id="cLinha" value="#1B5E20" oninput="renderRadar()">
+        </div>
+        <div class="design-col">
+          <label>Preench.</label>
+          <input type="color" id="cFundo" value="#43A047" oninput="renderRadar()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="range-label"><label>Opacidade</label><span id="lblOp">15%</span></div>
+        <input type="range" id="rOpacity" min="0" max="1" step="0.05" value="0.15"
+          oninput="document.getElementById('lblOp').textContent=Math.round(this.value*100)+'%'; renderRadar()">
+      </div>
+      <div class="form-row">
+        <div class="range-label"><label>Espessura da linha</label><span id="lblEsp">3px</span></div>
+        <input type="range" id="rEsp" min="1" max="10" step="1" value="3"
+          oninput="document.getElementById('lblEsp').textContent=this.value+'px'; renderRadar()">
+      </div>
+      <div class="form-row">
+        <div class="range-label"><label>Tamanho do ponto</label><span id="lblPt">5px</span></div>
+        <input type="range" id="rPt" min="0" max="15" step="1" value="5"
+          oninput="document.getElementById('lblPt').textContent=this.value+'px'; renderRadar()">
+      </div>
+      <div class="toggle-row">
+        <button id="btnLabels" class="btn-toggle" onclick="toggleLabels()" title="Rótulos acompanham a curva do radar">🔡 Rótulos Curvos</button>
+        <button id="btnBandeira" class="btn-toggle" onclick="toggleBandeira()" title="Preenche o radar com as cores da bandeira do país">🎨 Bandeira</button>
+      </div>
+    </div>
+  </div>
+
+</aside>
+
+<main>
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="country-display" id="displayPais">
+      <span class="cname1">Aguardando Dados</span>
+    </div>
+    <div class="top-actions">
+      <div class="score-badge" id="scoreBadge">
+        <span class="score-num" id="scoreNum">—</span>
+        <span class="score-denom">/ 100</span>
+      </div>
+      <div class="export-opts">
+        <label><input type="checkbox" id="expScore" checked> Score</label>
+        <label><input type="checkbox" id="expPos"> Posição</label>
+      </div>
+      <button class="btn-dl" style="background:#7C3AED;" onclick="abrirPodio()" title="Ranking por indicador">🏅 Pódio</button>
+      <button class="btn-dl" onclick="exportarPNG()">💾 PNG</button>
+      <button class="btn-dl" style="background:var(--navy);" onclick="abrirModalLote()">📦 Lote</button>
+      <button class="btn-dl" style="background:#6B7280;" onclick="exportarCSV()" title="Baixar dados em CSV">📄 CSV</button>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div id="chartWrap">
+    <div class="awaiting" id="waiting">
+      <div class="awaiting-icon">🌐</div>
+      <h2>Copa da Geografia 2026</h2>
+      <p>Conecte uma planilha via link ou cole os dados da aba <strong>Grafico_Radar</strong> na barra lateral.</p>
+    </div>
+    <canvas id="radarChart"></canvas>
+  </div>
+
+  <!-- SCORE CARDS -->
+  <div id="scoreGrid"></div>
+</main>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────
+let dados = [];
+let colunas = [];
+let eixos = [
+  "Geopolítica", "Qualidade de vida", "Economia", "Meio Ambiente",
+  "Território", "Demo", "Governo", "Ciência e Tecnologia"
+];
+// RESULTADOS (topo): Geopolítica | Qualidade de vida | C. e Tecnologia
+// PONTES (lados)  : Economia (3h) | Governo (9h)
+// POTENCIAL(base) : Meio Ambiente | Território | Demo
+// Pares 180°: Geopolítica↔Território | QV↔Demo | Economia↔Governo | MA↔CT
+let comparando = false;
+let grafico = null;
+let labelsCurvos = false;
+let modoBandeira = false;
+let temaAtual = 'copa';
+let mostrarMedia = false;       // anel/linha da média mundial
+let mostrarDestaques = false;   // realça maior valor de cada eixo
+let usarGradiente = false;      // preenchimento com gradiente radial
+let statsMundiais = null;       // {eixo: {min,max,media,paisMax,paisMin}}
+const ctx = document.getElementById('radarChart').getContext('2d');
+
+// ─── BANDEIRAS — cores primária e secundária ─────────────────
+const BANDEIRAS = {
+  'Alemanha':{'c1':'#000000','c2':'#DD0000'},'Angola':{'c1':'#CC0000','c2':'#000000'},
+  'Arábia Saudita':{'c1':'#006C35','c2':'#FFFFFF'},'Argentina':{'c1':'#74ACDF','c2':'#FFFFFF'},
+  'Austrália':{'c1':'#00008B','c2':'#CC0000'},'Áustria':{'c1':'#ED2939','c2':'#FFFFFF'},
+  'Bélgica':{'c1':'#000000','c2':'#FDDA24'},'Bolívia':{'c1':'#D52B1E','c2':'#F4E400'},
+  'Brasil':{'c1':'#009C3B','c2':'#FFDF00'},'Camarões':{'c1':'#007A5E','c2':'#CE1126'},
+  'Canadá':{'c1':'#FF0000','c2':'#FFFFFF'},'Chile':{'c1':'#D52B1E','c2':'#FFFFFF'},
+  'China':{'c1':'#DE2910','c2':'#FFDE00'},'Colômbia':{'c1':'#FCD116','c2':'#003087'},
+  'Coreia do Sul':{'c1':'#003478','c2':'#CD2E3A'},'Costa Rica':{'c1':'#002B7F','c2':'#CF142B'},
+  'Croácia':{'c1':'#FF0000','c2':'#FFFFFF'},'Curaçao':{'c1':'#002B7F','c2':'#009FCA'},
+  'Dinamarca':{'c1':'#C60C30','c2':'#FFFFFF'},'Egito':{'c1':'#CE1126','c2':'#FFFFFF'},
+  'Equador':{'c1':'#FFD100','c2':'#003893'},'Escócia':{'c1':'#003087','c2':'#FFFFFF'},
+  'Eslováquia':{'c1':'#FFFFFF','c2':'#003399'},'Eslovênia':{'c1':'#003DA5','c2':'#CF2027'},
+  'Espanha':{'c1':'#AA151B','c2':'#F1BF00'},'EUA':{'c1':'#B22234','c2':'#3C3B6E'},
+  'França':{'c1':'#002395','c2':'#ED2939'},'Gana':{'c1':'#006B3F','c2':'#FCD116'},
+  'Grécia':{'c1':'#0D5EAF','c2':'#FFFFFF'},'Guatemala':{'c1':'#4997D0','c2':'#FFFFFF'},
+  'Holanda':{'c1':'#AE1C28','c2':'#21468B'},'Honduras':{'c1':'#0073CF','c2':'#FFFFFF'},
+  'Hungria':{'c1':'#CE2939','c2':'#FFFFFF'},'Inglaterra':{'c1':'#CF142B','c2':'#FFFFFF'},
+  'Irã':{'c1':'#239F40','c2':'#DA0000'},'Iraque':{'c1':'#CE1126','c2':'#007A3D'},
+  'Islândia':{'c1':'#003897','c2':'#DC1E35'},'Israel':{'c1':'#0038B8','c2':'#FFFFFF'},
+  'Jamaica':{'c1':'#000000','c2':'#FED100'},'Japão':{'c1':'#BC002D','c2':'#FFFFFF'},
+  'Kuwait':{'c1':'#007A3D','c2':'#FFFFFF'},'Mali':{'c1':'#14B53A','c2':'#CE1126'},
+  'Marrocos':{'c1':'#C1272D','c2':'#006233'},'México':{'c1':'#006847','c2':'#CE1126'},
+  'Nigéria':{'c1':'#008751','c2':'#FFFFFF'},'Noruega':{'c1':'#EF2B2D','c2':'#002868'},
+  'Nova Zelândia':{'c1':'#00247D','c2':'#CC142B'},'Omã':{'c1':'#DB161B','c2':'#008000'},
+  'Países Baixos':{'c1':'#AE1C28','c2':'#21468B'},'Panamá':{'c1':'#005293','c2':'#DA121A'},
+  'Paraguai':{'c1':'#D52B1E','c2':'#0038A8'},'Peru':{'c1':'#D91023','c2':'#FFFFFF'},
+  'Polônia':{'c1':'#DC143C','c2':'#FFFFFF'},'Portugal':{'c1':'#006600','c2':'#FF0000'},
+  'Qatar':{'c1':'#8D1B3D','c2':'#FFFFFF'},'República Tcheca':{'c1':'#D7141A','c2':'#11457E'},
+  'Romênia':{'c1':'#002B7F','c2':'#FCD116'},'Senegal':{'c1':'#00853F','c2':'#FDEF42'},
+  'Sérvia':{'c1':'#C6363C','c2':'#0C4076'},'Suécia':{'c1':'#006AA7','c2':'#FECC02'},
+  'Suíça':{'c1':'#FF0000','c2':'#FFFFFF'},'Tailândia':{'c1':'#A51931','c2':'#2D2A4A'},
+  'Trinidad e Tobago':{'c1':'#CE1126','c2':'#000000'},'Tunísia':{'c1':'#E70013','c2':'#FFFFFF'},
+  'Turquia':{'c1':'#E30A17','c2':'#FFFFFF'},'Ucrânia':{'c1':'#005BBB','c2':'#FFD500'},
+  'Uruguai':{'c1':'#5AACD8','c2':'#FFFFFF'},'Venezuela':{'c1':'#CF142B','c2':'#003087'},
+  'África do Sul':{'c1':'#007A4D','c2':'#FFB81C'},'Argélia':{'c1':'#006233','c2':'#FFFFFF'},
+};
+
+// ─── SISTEMA DE TEMAS ────────────────────────────────────────
+const TEMAS = {
+  copa: {
+    nome: 'Copa', icon: '🏆',
+    cLinha: '#1B5E20', cFundo: '#43A047', opacidade: 0.18,
+    grid: '#E5E7EB', angle: '#E5E7EB', label: '#1B5E20',
+    tick: '#9CA3AF', fundoCanvas: '#FFFFFF', texto: '#1B5E20'
+  },
+  escuro: {
+    nome: 'Escuro', icon: '🌙',
+    cLinha: '#4ADE80', cFundo: '#22C55E', opacidade: 0.22,
+    grid: '#374151', angle: '#374151', label: '#E5E7EB',
+    tick: '#9CA3AF', fundoCanvas: '#111827', texto: '#F9FAFB'
+  },
+  jornal: {
+    nome: 'Jornal', icon: '📰',
+    cLinha: '#1A1A1A', cFundo: '#1A1A1A', opacidade: 0.10,
+    grid: '#D1D1D1', angle: '#A8A8A8', label: '#1A1A1A',
+    tick: '#888888', fundoCanvas: '#F5F3EE', texto: '#1A1A1A'
+  },
+  vibrante: {
+    nome: 'Vibrante', icon: '🎨',
+    cLinha: '#7C3AED', cFundo: '#A855F7', opacidade: 0.25,
+    grid: '#EDE9FE', angle: '#DDD6FE', label: '#6D28D9',
+    tick: '#A78BFA', fundoCanvas: '#FFFFFF', texto: '#6D28D9'
+  },
+  oceano: {
+    nome: 'Oceano', icon: '🌊',
+    cLinha: '#0369A1', cFundo: '#0EA5E9', opacidade: 0.20,
+    grid: '#E0F2FE', angle: '#BAE6FD', label: '#075985',
+    tick: '#7DD3FC', fundoCanvas: '#FFFFFF', texto: '#075985'
+  },
+  terra: {
+    nome: 'Terra', icon: '🏜️',
+    cLinha: '#92400E', cFundo: '#D97706', opacidade: 0.20,
+    grid: '#FEF3C7', angle: '#FDE68A', label: '#78350F',
+    tick: '#FCD34D', fundoCanvas: '#FFFBEB', texto: '#78350F'
+  }
+};
+
+function aplicarTema(nome) {
+  temaAtual = nome;
+  const t = TEMAS[nome];
+  if (!t) return;
+  // Atualiza os controles de cor para refletir o tema
+  document.getElementById('cLinha').value = t.cLinha;
+  document.getElementById('cFundo').value = t.cFundo;
+  document.getElementById('rOpacity').value = t.opacidade;
+  document.getElementById('lblOp').textContent = Math.round(t.opacidade*100)+'%';
+  // Marca botão ativo
+  document.querySelectorAll('.tema-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.tema === nome);
+  });
+  salvarConfig();
+  renderRadar();
+}
+
+// ─── ESTATÍSTICAS MUNDIAIS ───────────────────────────────────
+function calcularStats() {
+  if (!dados.length || !eixos.length) { statsMundiais = null; return; }
+  const cp = document.getElementById('colPais').value;
+  statsMundiais = {};
+  eixos.forEach(eixo => {
+    let max = -Infinity, min = Infinity, soma = 0, n = 0, paisMax = '', paisMin = '';
+    dados.forEach(row => {
+      if (!row[cp]) return;
+      const v = parseNum(row[eixo]);
+      soma += v; n++;
+      if (v > max) { max = v; paisMax = row[cp]; }
+      if (v < min) { min = v; paisMin = row[cp]; }
+    });
+    statsMundiais[eixo] = { max, min, media: n ? soma/n : 0, paisMax, paisMin };
+  });
+}
+
+function getMediaMundial() {
+  if (!statsMundiais) calcularStats();
+  return eixos.map(e => statsMundiais[e] ? statsMundiais[e].media : 0);
+}
+
+// ─── PLUGIN: RÓTULOS CURVOS (texto seguindo o arco) ──────────
+// Desenha cada rótulo letra-a-letra ao longo de um arco circular,
+// como se o texto "abraçasse" o radar. Sem decorações extras.
+const pluginLabelsCustom = {
+  id: 'labelsCustom',
+  afterDraw(chart) {
+    if (!labelsCurvos) return;
+    const { ctx: c2, scales: { r } } = chart;
+    const labels = chart.data.labels;
+    const n = labels.length;
+    const cx = r.xCenter, cy = r.yCenter;
+    const baseRad = r.drawingArea;
+    const fontSize = Math.max(11, Math.round(baseRad / 13));
+    const textRad = baseRad + fontSize * 1.6;
+
+    c2.save();
+    c2.font = `700 ${fontSize}px "Barlow Condensed",sans-serif`;
+    c2.fillStyle = '#1B5E20';
+    c2.textAlign = 'center';
+    c2.textBaseline = 'middle';
+
+    labels.forEach((label, i) => {
+      const center = (2 * Math.PI * i / n) - Math.PI / 2;
+      const chars = label.split('');
+      // largura angular total do texto
+      const totalW = chars.reduce((sum, ch) => sum + c2.measureText(ch).width, 0);
+      const angSpan = totalW / textRad;
+      // Hemisfério inferior: texto lê da esquerda p/ direita ao longo do arco
+      const bottom = Math.sin(center) > 0.15;
+      let ang = bottom ? center + angSpan / 2 : center - angSpan / 2;
+      const dir = bottom ? -1 : 1;
+
+      chars.forEach(ch => {
+        const w = c2.measureText(ch).width;
+        const half = (w / textRad) / 2;
+        ang += dir * half;
+        const x = cx + textRad * Math.cos(ang);
+        const y = cy + textRad * Math.sin(ang);
+        c2.save();
+        c2.translate(x, y);
+        c2.rotate(ang + Math.PI / 2 + (bottom ? Math.PI : 0));
+        c2.fillText(ch, 0, 0);
+        c2.restore();
+        ang += dir * half;
+      });
+    });
+    c2.restore();
+  }
+};
+Chart.register(pluginLabelsCustom);
+
+// ─── INIT ─────────────────────────────────────────────────────
+window.onload = () => {
+  try {
+    const url = localStorage.getItem('copaUrl');
+    if (url) { document.getElementById('csvUrl').value = url; conectarPlanilha(); }
+  } catch(e) { /* localStorage indisponível (modo privado) — segue sem persistência */ }
+};
+
+// ─── DATA LOAD ────────────────────────────────────────────────
+function setStatus(msg, err=false) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = 'status' + (err ? ' err' : '');
+}
+
+// Converte link de compartilhamento normal em link de exportação TSV
+function normalizarUrl(raw) {
+  if (raw.includes('/pub') || raw.includes('/gviz')) return raw;
+  const m = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return `https://docs.google.com/spreadsheets/d/${m[1]}/pub?output=tsv`;
+  return raw;
+}
+
+async function conectarPlanilha() {
+  const rawUrl = document.getElementById('csvUrl').value.trim();
+  if (!rawUrl) return;
+  const url = normalizarUrl(rawUrl);
+  const delim = (url.includes('output=tsv') || url.includes('tsv')) ? '\t' : '\t';
+  localStorage.setItem('copaUrl', rawUrl);
+
+  const tentativas = [
+    { nome: 'direto',      href: url },
+    { nome: 'corsproxy',   href: 'https://corsproxy.io/?' + encodeURIComponent(url) },
+    { nome: 'allorigins',  href: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url) },
+    { nome: 'thingproxy',  href: 'https://thingproxy.freeboard.io/fetch/' + url },
+    { nome: 'htmldriven',  href: 'https://proxy.cors.sh/' + url },
+  ];
+
+  for (const t of tentativas) {
+    try {
+      setStatus(`Conectando (${t.nome})…`);
+      const res = await fetch(t.href);
+      if (!res.ok) continue;
+      const txt = await res.text();
+      if (!txt || txt.trimStart().startsWith('<')) continue;
+      const parsed = Papa.parse(txt, { header: true, skipEmptyLines: true, delimiter: delim });
+      if (parsed.data.length > 0) {
+        processarDados(parsed.data, `✓ ${parsed.data.length} países carregados.`);
+        return;
+      }
+    } catch (_) { /* tenta próximo */ }
+  }
+  setStatus('Falha em todos os proxies. Use a Opção B (colar dados).', true);
+}
+
+function carregarArquivo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('statusArquivo');
+  statusEl.textContent = 'Lendo arquivo…';
+  statusEl.className = 'status';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const txt = ev.target.result;
+    const delim = file.name.toLowerCase().endsWith('.tsv') ? '\t' : '';
+    const parsed = Papa.parse(txt, { header: true, skipEmptyLines: true, delimiter: delim || '\t' });
+    if (parsed.data.length > 0) {
+      processarDados(parsed.data, `✓ ${parsed.data.length} países carregados do arquivo.`);
+      statusEl.textContent = `✓ ${file.name} carregado.`;
+    } else {
+      statusEl.textContent = 'Arquivo sem dados reconhecíveis.';
+      statusEl.className = 'status err';
+    }
+  };
+  reader.onerror = () => { statusEl.textContent = 'Erro ao ler o arquivo.'; statusEl.className = 'status err'; };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function carregarManual() {
+  const txt = document.getElementById('txtDados').value.trim();
+  if (!txt) return;
+  Papa.parse(txt, {
+    header: true, skipEmptyLines: true, delimiter: '\t',
+    complete: r => processarDados(r.data, `✓ ${r.data.length} países carregados.`)
+  });
+}
+
+function processarDados(linhas, msg) {
+  dados = linhas.filter(r => {
+    const k = Object.keys(r)[0];
+    return r[k] && String(r[k]).trim() !== '';
+  });
+  if (!dados.length) return setStatus('Nenhuma linha de dados encontrada.', true);
+  colunas = Object.keys(dados[0]);
+  setStatus(msg);
+  carregarConfig();      // restaura tema/eixos/toggles salvos
+  configurarPainel();    // filtra eixos contra colunas reais e popula selects
+  calcularStats();       // estatísticas mundiais para média/destaques/pódio
+  aplicarTema(temaAtual);// reaplica cores do tema restaurado
+  renderAxisList();
+}
+
+// ─── PANEL SETUP ─────────────────────────────────────────────
+function configurarPainel() {
+  const sel = document.getElementById('colPais');
+  sel.innerHTML = '';
+  colunas.forEach(c => {
+    const o = new Option(c, c);
+    if (/pa[íi]s/i.test(c)) o.selected = true;
+    sel.appendChild(o);
+  });
+  // Filtra eixos que existem nos dados
+  eixos = eixos.filter(e => colunas.includes(e));
+  if (!eixos.length) eixos = colunas.filter(c => c !== sel.value).slice(0, 8);
+  renderAxisList();
+  preencherSelects();
+}
+
+function mapearColunas() {
+  eixos = eixos.filter(e => colunas.includes(e));
+  renderAxisList();
+  preencherSelects();
+}
+
+function preencherSelects() {
+  const cp = document.getElementById('colPais').value;
+  [document.getElementById('pais1'), document.getElementById('pais2')].forEach(sel => {
+    const cur = sel.value;
+    sel.innerHTML = '';
+    [...dados].sort((a,b) => String(a[cp]).localeCompare(String(b[cp]), 'pt-BR'))
+      .forEach(row => {
+        const v = row[cp];
+        if (v) { const o = new Option(v, v); if (v === cur) o.selected = true; sel.appendChild(o); }
+      });
+  });
+  atualizar();
+}
+
+// ─── AXIS CONFIG ─────────────────────────────────────────────
+function renderAxisList() {
+  const cp = document.getElementById('colPais').value;
+  const c = document.getElementById('listaEixos');
+  c.innerHTML = '';
+  eixos.forEach((e, i) => {
+    const row = document.createElement('div'); row.className = 'axis-row';
+    const num = document.createElement('span'); num.className = 'axis-num'; num.textContent = (i+1)+'º';
+    const sel = document.createElement('select');
+    colunas.filter(col => col !== cp).forEach(col => {
+      const o = new Option(col, col); if (col === e) o.selected = true; sel.appendChild(o);
+    });
+    sel.onchange = () => { eixos[i] = sel.value; renderRadar(); renderCards(); };
+    const rm = document.createElement('button'); rm.className = 'btn-rm'; rm.textContent = '✕';
+    rm.onclick = () => { eixos.splice(i,1); renderAxisList(); renderRadar(); renderCards(); };
+    row.append(num, sel, rm); c.appendChild(row);
+  });
+}
+
+function addEixo() {
+  const cp = document.getElementById('colPais').value;
+  const nova = colunas.find(c => c !== cp && !eixos.includes(c)) || colunas.find(c => c !== cp);
+  if (nova) { eixos.push(nova); renderAxisList(); renderRadar(); renderCards(); }
+}
+
+// ─── LABELS CURVOS ───────────────────────────────────────────
+function toggleLabels() {
+  labelsCurvos = !labelsCurvos;
+  const btn = document.getElementById('btnLabels');
+  btn.className = 'btn-toggle' + (labelsCurvos ? ' on' : '');
+  renderRadar();
+}
+
+// ─── MODO BANDEIRA ────────────────────────────────────────────
+function toggleBandeira() {
+  modoBandeira = !modoBandeira;
+  const btn = document.getElementById('btnBandeira');
+  btn.className = 'btn-toggle' + (modoBandeira ? ' bandeira-on' : '');
+  renderRadar();
+}
+
+function toggleMedia() {
+  mostrarMedia = !mostrarMedia;
+  document.getElementById('swMedia').classList.toggle('on', mostrarMedia);
+  salvarConfig(); renderRadar();
+}
+function toggleDestaques() {
+  mostrarDestaques = !mostrarDestaques;
+  document.getElementById('swDestaque').classList.toggle('on', mostrarDestaques);
+  if (mostrarDestaques) calcularStats();
+  salvarConfig(); renderRadar();
+}
+function toggleGradiente() {
+  usarGradiente = !usarGradiente;
+  document.getElementById('swGradiente').classList.toggle('on', usarGradiente);
+  salvarConfig(); renderRadar();
+}
+
+// ─── PERSISTÊNCIA DE CONFIGURAÇÕES ───────────────────────────
+function salvarConfig() {
+  const cfg = {
+    tema: temaAtual, eixos,
+    mostrarMedia, mostrarDestaques, usarGradiente, labelsCurvos, modoBandeira,
+    cLinha: document.getElementById('cLinha').value,
+    cFundo: document.getElementById('cFundo').value,
+    opacidade: document.getElementById('rOpacity').value,
+    espessura: document.getElementById('rEsp').value,
+    ponto: document.getElementById('rPt').value
+  };
+  try { localStorage.setItem('copaConfig', JSON.stringify(cfg)); } catch(e) {}
+}
+
+function carregarConfig() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('copaConfig'));
+    if (!cfg) return;
+    if (cfg.tema) temaAtual = cfg.tema;
+    if (cfg.eixos && cfg.eixos.length) eixos = cfg.eixos;
+    mostrarMedia = !!cfg.mostrarMedia;
+    mostrarDestaques = !!cfg.mostrarDestaques;
+    usarGradiente = !!cfg.usarGradiente;
+    labelsCurvos = !!cfg.labelsCurvos;
+    modoBandeira = !!cfg.modoBandeira;
+    if (cfg.cLinha) document.getElementById('cLinha').value = cfg.cLinha;
+    if (cfg.cFundo) document.getElementById('cFundo').value = cfg.cFundo;
+    if (cfg.opacidade) { document.getElementById('rOpacity').value = cfg.opacidade; document.getElementById('lblOp').textContent = Math.round(cfg.opacidade*100)+'%'; }
+    if (cfg.espessura) { document.getElementById('rEsp').value = cfg.espessura; document.getElementById('lblEsp').textContent = cfg.espessura+'px'; }
+    if (cfg.ponto) { document.getElementById('rPt').value = cfg.ponto; document.getElementById('lblPt').textContent = cfg.ponto+'px'; }
+    // Reflete nos toggles visuais
+    document.getElementById('swMedia')?.classList.toggle('on', mostrarMedia);
+    document.getElementById('swDestaque')?.classList.toggle('on', mostrarDestaques);
+    document.getElementById('swGradiente')?.classList.toggle('on', usarGradiente);
+    document.getElementById('btnLabels')?.classList.toggle('on', labelsCurvos);
+    document.getElementById('btnBandeira')?.classList.toggle('bandeira-on', modoBandeira);
+    document.querySelectorAll('.tema-btn').forEach(b => b.classList.toggle('on', b.dataset.tema === temaAtual));
+  } catch(e) {}
+}
+
+function getCorBandeira(pais) {
+  // Tenta match exato, depois sem acentos
+  const b = BANDEIRAS[pais];
+  if (b) return b;
+  const slug = pais.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const key = Object.keys(BANDEIRAS).find(k =>
+    k.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase() === slug
+  );
+  return key ? BANDEIRAS[key] : null;
+}
+
+// ─── RANKING ──────────────────────────────────────────────────
+function calcularRanking(pais) {
+  const cp = document.getElementById('colPais').value;
+  const mc = colunas.find(c => /m[eé]dia|geral/i.test(c));
+  if (!mc) return null;
+  const sorted = [...dados]
+    .map(r => ({ nome: r[cp], score: parseNum(r[mc]) }))
+    .filter(r => r.nome)
+    .sort((a,b) => b.score - a.score);
+  const pos = sorted.findIndex(r => r.nome === pais);
+  return pos >= 0 ? pos + 1 : null;
+}
+
+// ─── COMPARE MODE ────────────────────────────────────────────
+function toggleComparacao() {
+  comparando = !comparando;
+  document.getElementById('pais2Row').style.display = comparando ? '' : 'none';
+  const btn = document.getElementById('btnCompare');
+  btn.textContent = comparando ? '✕ Desativar Comparação' : '⚡ Modo Comparação';
+  btn.className = 'btn ' + (comparando ? 'btn-compare-on' : 'btn-outline');
+  atualizar();
+}
+
+// ─── UPDATE ───────────────────────────────────────────────────
+function atualizar() {
+  renderTopBar();
+  renderRadar();
+  renderCards();
+}
+
+function renderTopBar() {
+  const p1 = document.getElementById('pais1').value;
+  const p2 = document.getElementById('pais2').value;
+  const div = document.getElementById('displayPais');
+  if (comparando) {
+    div.innerHTML = `<span class="cname1">${p1}</span><span class="vs-sep">VS</span><span class="cname2">${p2}</span>`;
+  } else {
+    div.innerHTML = `<span class="cname1">${p1 || 'Aguardando Dados'}</span>`;
+  }
+  // Média Geral
+  const cp = document.getElementById('colPais').value;
+  const row = dados.find(r => r[cp] === p1);
+  const badge = document.getElementById('scoreBadge');
+  if (!row) { badge.classList.remove('visible'); return; }
+  const mc = colunas.find(c => /m[eé]dia|geral|total score/i.test(c));
+  if (mc) {
+    const v = parseFloat(String(row[mc]).replace(',','.'));
+    if (!isNaN(v)) { document.getElementById('scoreNum').textContent = v.toFixed(1); badge.classList.add('visible'); return; }
+  }
+  // fallback: calcular da lista de eixos
+  const vals = eixos.map(e => parseNum(row[e]));
+  const med = vals.reduce((a,b)=>a+b,0)/vals.length;
+  document.getElementById('scoreNum').textContent = med.toFixed(1);
+  badge.classList.add('visible');
+}
+
+// ─── RADAR ───────────────────────────────────────────────────
+function hexRgba(hex, a) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+function parseNum(v) { return parseFloat(String(v||'0').replace(',','.'))||0; }
+
+function getDados(nome) {
+  const cp = document.getElementById('colPais').value;
+  const row = dados.find(r => r[cp] === nome);
+  if (!row) return eixos.map(()=>0);
+  return eixos.map(e => parseNum(row[e]));
+}
+
+// Cria gradiente radial para preenchimento
+function criarGradiente(context, corBase, alpha) {
+  const area = context.chart.chartArea;
+  if (!area) return hexRgba(corBase, alpha);
+  const cx = (area.left + area.right) / 2;
+  const cy = (area.top + area.bottom) / 2;
+  const rad = Math.min(area.right - area.left, area.bottom - area.top) / 2;
+  const g = context.chart.ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+  g.addColorStop(0, hexRgba(corBase, Math.min(alpha + 0.25, 0.9)));
+  g.addColorStop(1, hexRgba(corBase, Math.max(alpha - 0.05, 0.02)));
+  return g;
+}
+
+function renderRadar() {
+  if (!dados.length || !eixos.length) return;
+  const p1 = document.getElementById('pais1').value;
+  const p2 = document.getElementById('pais2').value;
+  const al = parseFloat(document.getElementById('rOpacity').value);
+  const bw = parseInt(document.getElementById('rEsp').value);
+  const pr = parseInt(document.getElementById('rPt').value);
+  const tema = TEMAS[temaAtual] || TEMAS.copa;
+
+  // Cores: bandeira ou personalizadas
+  let cl = document.getElementById('cLinha').value;
+  let cf = document.getElementById('cFundo').value;
+  if (modoBandeira) {
+    const b = getCorBandeira(p1);
+    if (b) { cl = b.c1; cf = b.c2; }
+  }
+
+  document.getElementById('waiting').style.display = 'none';
+  document.getElementById('radarChart').style.display = '';
+
+  // Aplica cor de fundo do canvas conforme tema (no wrapper)
+  document.getElementById('chartWrap').style.background = tema.fundoCanvas;
+  document.getElementById('chartWrap').style.borderRadius = '12px';
+
+  const valores1 = getDados(p1);
+
+  // Pontos destacados: cor diferente onde o país é líder mundial naquele eixo
+  let pointColors = cl;
+  if (mostrarDestaques && statsMundiais) {
+    pointColors = eixos.map((e, i) => {
+      const s = statsMundiais[e];
+      if (s && Math.abs(valores1[i] - s.max) < 0.05) return '#F9A825'; // líder = dourado
+      return cl;
+    });
+  }
+
+  const datasets = [{
+    label: p1,
+    data: valores1,
+    backgroundColor: usarGradiente ? (ctx2 => criarGradiente(ctx2, cf, al)) : hexRgba(cf, al),
+    borderColor: cl, borderWidth: bw,
+    pointBackgroundColor: pointColors, pointBorderColor: '#fff',
+    pointRadius: mostrarDestaques ? pr + 1 : pr, pointHoverRadius: pr+3,
+    order: 2
+  }];
+
+  if (comparando) {
+    const cl2 = '#3949AB', cf2 = '#3949AB';
+    datasets.push({
+      label: p2,
+      data: getDados(p2),
+      backgroundColor: usarGradiente ? (ctx2 => criarGradiente(ctx2, cf2, Math.min(al+0.05,0.4))) : hexRgba(cf2, Math.min(al+0.05, 0.4)),
+      borderColor: cl2, borderWidth: bw,
+      pointBackgroundColor: cl2, pointBorderColor: '#fff',
+      pointRadius: pr, pointHoverRadius: pr+3, order: 1
+    });
+  }
+
+  // Linha fantasma da média mundial
+  if (mostrarMedia && !comparando) {
+    datasets.push({
+      label: 'Média Mundial',
+      data: getMediaMundial(),
+      backgroundColor: 'transparent',
+      borderColor: tema.tick, borderWidth: 1.5, borderDash: [6, 4],
+      pointRadius: 0, pointHoverRadius: 0, order: 3
+    });
+  }
+
+  if (grafico) grafico.destroy();
+  grafico = new Chart(ctx, {
+    type: 'radar',
+    data: { labels: eixos, datasets },
+    options: {
+      animation: { duration: 350 },
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: comparando || (mostrarMedia && !comparando), position: 'top',
+          labels: { font: { family: 'Inter', size: 11 }, boxWidth: 10, padding: 8, color: tema.texto }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${Number(ctx.raw).toFixed(1)}`,
+            afterLabel: ctx => {
+              if (!statsMundiais || ctx.dataset.label === 'Média Mundial') return '';
+              const e = eixos[ctx.dataIndex];
+              const s = statsMundiais[e];
+              if (!s) return '';
+              const diff = ctx.raw - s.media;
+              const sinal = diff >= 0 ? '+' : '';
+              return `  vs média: ${sinal}${diff.toFixed(1)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        r: {
+          min: 0, max: 100,
+          angleLines: { color: tema.angle },
+          grid: { color: tema.grid },
+          pointLabels: { display: !labelsCurvos, font: { size: 13, weight: '700', family: 'Barlow Condensed' }, color: tema.label },
+          ticks: { stepSize: 20, backdropColor: 'transparent', color: tema.tick, font: { size: 9 } }
+        }
+      }
+    }
+  });
+}
+
+// ─── SCORE CARDS ─────────────────────────────────────────────
+function scoreColor(v) {
+  if (v >= 70) return '#2E7D32';
+  if (v >= 50) return '#F9A825';
+  if (v >= 30) return '#E65100';
+  return '#B71C1C';
+}
+
+function renderCards() {
+  if (!dados.length) return;
+  const cp = document.getElementById('colPais').value;
+  const p1 = document.getElementById('pais1').value;
+  const p2 = document.getElementById('pais2').value;
+  const row1 = dados.find(r => r[cp] === p1);
+  const row2 = comparando ? dados.find(r => r[cp] === p2) : null;
+  if (!row1) return;
+  const grid = document.getElementById('scoreGrid');
+  grid.innerHTML = '';
+  eixos.forEach(e => {
+    const v1 = parseNum(row1[e]);
+    const card = document.createElement('div'); card.className = 'scard';
+    let inner = `<div class="scard-name">${e}</div>`;
+    if (comparando && row2) {
+      const v2 = parseNum(row2[e]);
+      inner += `<div class="scard-compare">
+        <span class="sv1">${v1.toFixed(1)}</span>
+        <span class="svsep">vs</span>
+        <span class="sv2">${v2.toFixed(1)}</span>
+      </div>`;
+    } else {
+      inner += `<div class="scard-val" style="color:${scoreColor(v1)}">${v1.toFixed(1)}</div>`;
+    }
+    inner += `<div class="sbar-bg"><div class="sbar-fill" style="background:${scoreColor(v1)}" data-w="${v1}"></div></div>`;
+    card.innerHTML = inner;
+    grid.appendChild(card);
+    // Anima a barra (0 → valor real)
+    requestAnimationFrame(() => {
+      card.querySelector('.sbar-fill').style.width = v1 + '%';
+    });
+  });
+}
+
+// ─── PÓDIO POR INDICADOR ─────────────────────────────────────
+function abrirPodio() {
+  if (!dados.length) return;
+  const sel = document.getElementById('podioEixo');
+  sel.innerHTML = '';
+  // Eixos + Média Geral
+  const mc = colunas.find(col => /m[eé]dia|geral/i.test(col));
+  if (mc) sel.appendChild(new Option('🏆 ' + mc + ' (geral)', mc));
+  eixos.forEach(e => sel.appendChild(new Option(e, e)));
+  renderPodio();
+  document.getElementById('modalPodio').classList.add('open');
+}
+function fecharPodio() {
+  document.getElementById('modalPodio').classList.remove('open');
+}
+function renderPodio() {
+  const eixo = document.getElementById('podioEixo').value;
+  const cp = document.getElementById('colPais').value;
+  const tema = TEMAS[temaAtual] || TEMAS.copa;
+  const ranking = [...dados]
+    .map(r => ({ nome: r[cp], val: parseNum(r[eixo]) }))
+    .filter(r => r.nome)
+    .sort((a, b) => b.val - a.val);
+  const maxVal = ranking.length ? ranking[0].val : 100;
+  const paisAtual = document.getElementById('pais1').value;
+
+  const body = document.getElementById('podioBody');
+  const posAtual = ranking.findIndex(r => r.nome === paisAtual) + 1;
+  let html = '';
+  if (posAtual > 0) {
+    html += `<div class="podio-destaque">📍 <strong>${paisAtual}</strong> está em <strong>${posAtual}º</strong> de ${ranking.length} neste indicador (${ranking[posAtual-1].val.toFixed(1)} pts)</div>`;
+  }
+  ranking.slice(0, 15).forEach((r, i) => {
+    const pct = maxVal > 0 ? (r.val / maxVal * 100) : 0;
+    const cls = i < 3 ? `podio-${i+1}` : '';
+    const medalha = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
+    const isAtual = r.nome === paisAtual;
+    const barColor = i < 3 ? (i===0?'#F9A825':i===1?'#9CA3AF':'#B45309') : tema.cLinha;
+    html += `<div class="podio-item ${cls}" style="${isAtual?'outline:2px solid '+tema.cLinha+';outline-offset:-2px;':''}">
+      <div class="podio-rank">${medalha}</div>
+      <div class="podio-nome">${r.nome}${isAtual?' 📍':''}</div>
+      <div class="podio-bar-wrap"><div class="podio-bar" style="width:0%;background:${barColor}" data-w="${pct}"></div></div>
+      <div class="podio-val">${r.val.toFixed(1)}</div>
+    </div>`;
+  });
+  body.innerHTML = html;
+  // Anima barras
+  requestAnimationFrame(() => {
+    body.querySelectorAll('.podio-bar').forEach(b => b.style.width = b.dataset.w + '%');
+  });
+}
+
+// ─── EXPORT CSV ──────────────────────────────────────────────
+function exportarCSV() {
+  if (!dados.length) return;
+  const cp = document.getElementById('colPais').value;
+  const mc = colunas.find(col => /m[eé]dia|geral/i.test(col));
+  const cols = [cp, ...eixos];
+  if (mc && !cols.includes(mc)) cols.push(mc);
+  const linhas = [cols.join(';')];
+  [...dados]
+    .filter(r => r[cp])
+    .sort((a,b) => String(a[cp]).localeCompare(String(b[cp]), 'pt-BR'))
+    .forEach(r => {
+      linhas.push(cols.map(col => {
+        const v = r[col];
+        return col === cp ? v : parseNum(v).toFixed(1).replace('.', ',');
+      }).join(';'));
+    });
+  const blob = new Blob(['\ufeff' + linhas.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'copa_geografia_2026_dados.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── KEYBOARD NAV ────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (!dados.length) return;
+  const tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  const sel = document.getElementById('pais1');
+  if (e.key === 'ArrowLeft' && sel.selectedIndex > 0) { sel.selectedIndex--; atualizar(); }
+  else if (e.key === 'ArrowRight' && sel.selectedIndex < sel.options.length-1) { sel.selectedIndex++; atualizar(); }
+  else if (e.key.toLowerCase() === 'c') toggleComparacao();
+  else if (e.key.toLowerCase() === 'p') abrirPodio();
+  else if (e.key === 'Escape') { fecharPodio(); fecharModalLote(); }
+});
+
+// ─── COMPOSIÇÃO UNIFICADA DE PNG ─────────────────────────────
+// Renderiza um radar centralizado e quadrado, com padding correto,
+// título do país, badge de score e ranking. Usado tanto pelo
+// export individual quanto pelo lote.
+//
+// opts = { pais, tam, transparente, mostrarScore, mostrarPos,
+//          mostrarTitulo, cl, cf, al, bw, pr }
+// Retorna uma Promise<canvas>.
+async function comporRadarPNG(opts) {
+  const { pais, tam, transparente } = opts;
+  const cp = document.getElementById('colPais').value;
+  const row = dados.find(r => r[cp] === pais);
+  if (!row) return null;
+  const valores = eixos.map(e => parseNum(row[e]));
+
+  // Canvas final quadrado
+  const cv = document.createElement('canvas');
+  cv.width = tam; cv.height = tam;
+  const cx2 = cv.getContext('2d');
+
+  // Fundo
+  if (!transparente) {
+    cx2.fillStyle = '#FFFFFF';
+    cx2.fillRect(0, 0, tam, tam);
+  }
+
+  // Reserva de espaço: título no topo, badge embaixo
+  const padTop = opts.mostrarTitulo ? tam * 0.13 : tam * 0.06;
+  const padBottom = tam * 0.08;
+  const padSide = tam * 0.06;
+
+  // Canvas interno só para o gráfico (quadrado, centralizado na área útil)
+  const chartArea = Math.min(tam - padSide * 2, tam - padTop - padBottom);
+  const chartCv = document.createElement('canvas');
+  chartCv.width = chartArea; chartCv.height = chartArea;
+  const chartCtx = chartCv.getContext('2d');
+
+  const fLabel = Math.max(11, Math.round(chartArea / 26));
+  const fTick  = Math.max(8, Math.round(chartArea / 42));
+
+  const tmp = new Chart(chartCtx, {
+    type: 'radar',
+    data: {
+      labels: eixos,
+      datasets: [{
+        data: valores,
+        backgroundColor: hexRgba(opts.cf, opts.al),
+        borderColor: opts.cl, borderWidth: opts.bw,
+        pointBackgroundColor: opts.cl, pointBorderColor: '#fff',
+        pointRadius: opts.pr
+      }]
+    },
+    options: {
+      animation: false, responsive: false, devicePixelRatio: 1,
+      layout: { padding: chartArea * 0.13 }, // espaço p/ rótulos não cortarem
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          min: 0, max: 100,
+          angleLines: { color: '#E5E7EB' },
+          grid: { color: '#E5E7EB' },
+          pointLabels: {
+            display: !labelsCurvos,
+            font: { size: fLabel, weight: '700', family: 'Barlow Condensed' },
+            color: '#1B5E20'
+          },
+          ticks: { stepSize: 20, backdropColor: 'transparent', color: '#9CA3AF', font: { size: fTick } }
+        }
+      }
+    }
+  });
+
+  // Força o desenho síncrono (animation:false garante render imediato,
+  // incluindo o plugin afterDraw dos rótulos curvos)
+  tmp.draw();
+  await new Promise(r => requestAnimationFrame(r));
+
+  // Cola o gráfico centralizado horizontalmente, abaixo do título
+  const gx = (tam - chartArea) / 2;
+  const gy = padTop;
+  cx2.drawImage(chartCv, gx, gy);
+  tmp.destroy();
+
+  // ── TÍTULO (nome do país) ──
+  if (opts.mostrarTitulo) {
+    const fT = Math.round(tam / 16);
+    cx2.font = `700 ${fT}px "Barlow Condensed",sans-serif`;
+    cx2.fillStyle = '#1B5E20';
+    cx2.textAlign = 'center';
+    cx2.textBaseline = 'middle';
+    cx2.fillText(pais.toUpperCase(), tam / 2, padTop / 2);
+  }
+
+  // ── BADGE DE SCORE ──
+  const mc = colunas.find(col => /m[eé]dia|geral/i.test(col));
+  const score = mc ? parseNum(row[mc]) : null;
+  if (opts.mostrarScore && score !== null) {
+    const fScore = Math.round(tam / 13);
+    const fDenom = Math.round(fScore * 0.34);
+    cx2.font = `700 ${fScore}px "Barlow Condensed",sans-serif`;
+    const scoreStr = score.toFixed(1);
+    const numW = cx2.measureText(scoreStr).width;
+    cx2.font = `600 ${fDenom}px Inter,sans-serif`;
+    const denomW = cx2.measureText('/100').width;
+    const innerW = Math.max(numW, denomW);
+    const padBadge = tam * 0.02;
+    const bw2 = innerW + padBadge * 2;
+    const bh2 = fScore * 1.05 + fDenom * 1.1 + padBadge * 1.4;
+    const bx = tam - padSide - bw2;
+    const by = tam - padBottom - bh2;
+
+    // Caixa dourada com cantos arredondados
+    cx2.fillStyle = '#F9A825';
+    cx2.beginPath();
+    cx2.roundRect(bx, by, bw2, bh2, tam * 0.018);
+    cx2.fill();
+
+    // Número grande
+    cx2.font = `700 ${fScore}px "Barlow Condensed",sans-serif`;
+    cx2.fillStyle = '#1B5E20';
+    cx2.textAlign = 'center';
+    cx2.textBaseline = 'middle';
+    cx2.fillText(scoreStr, bx + bw2/2, by + padBadge + fScore * 0.52);
+
+    // "/ 100" abaixo
+    cx2.font = `600 ${fDenom}px Inter,sans-serif`;
+    cx2.fillStyle = 'rgba(27,94,32,0.7)';
+    cx2.fillText('/ 100', bx + bw2/2, by + padBadge + fScore * 1.05 + fDenom * 0.55);
+  }
+
+  // ── RANKING ──
+  if (opts.mostrarPos) {
+    const rank = calcularRanking(pais);
+    if (rank) {
+      const fR = Math.round(tam / 18);
+      cx2.font = `700 ${fR}px "Barlow Condensed",sans-serif`;
+      cx2.textAlign = 'left';
+      cx2.textBaseline = 'bottom';
+      // Badge circular
+      const cxR = padSide + fR * 0.9;
+      const cyR = tam - padBottom - fR * 0.6;
+      cx2.fillStyle = '#1B5E20';
+      cx2.beginPath();
+      cx2.arc(cxR, cyR - fR * 0.3, fR * 0.95, 0, 2 * Math.PI);
+      cx2.fill();
+      cx2.fillStyle = '#FFFFFF';
+      cx2.textAlign = 'center';
+      cx2.textBaseline = 'middle';
+      cx2.font = `700 ${Math.round(fR * 0.7)}px "Barlow Condensed",sans-serif`;
+      cx2.fillText(`${rank}º`, cxR, cyR - fR * 0.3);
+    }
+  }
+
+  return cv;
+}
+
+// ─── PNG EXPORT INDIVIDUAL ───────────────────────────────────
+async function exportarPNG() {
+  if (!grafico) return;
+  const p1 = document.getElementById('pais1').value;
+  const slug = p1.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+                  .toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+
+  // Cores (respeita modo bandeira)
+  let cl = document.getElementById('cLinha').value;
+  let cf = document.getElementById('cFundo').value;
+  if (modoBandeira) {
+    const b = getCorBandeira(p1);
+    if (b) { cl = b.c1; cf = b.c2; }
+  }
+
+  const cv = await comporRadarPNG({
+    pais: p1, tam: 1000, transparente: false,
+    mostrarScore: document.getElementById('expScore')?.checked,
+    mostrarPos:   document.getElementById('expPos')?.checked,
+    mostrarTitulo: true,
+    cl, cf,
+    al: parseFloat(document.getElementById('rOpacity').value),
+    bw: parseInt(document.getElementById('rEsp').value),
+    pr: parseInt(document.getElementById('rPt').value)
+  });
+  if (!cv) return;
+
+  const a = document.createElement('a');
+  a.download = `radar_copa_${slug}.png`;
+  a.href = cv.toDataURL('image/png');
+  a.click();
+}
+
+// ─── BATCH EXPORT ────────────────────────────────────────────
+function abrirModalLote() {
+  if (!dados.length) return;
+  const colPais = document.getElementById('colPais').value;
+  const grid = document.getElementById('loteGrid');
+  grid.innerHTML = '';
+  const paises = [...dados]
+    .sort((a,b) => String(a[colPais]).localeCompare(String(b[colPais]), 'pt-BR'))
+    .map(r => r[colPais]).filter(Boolean);
+  paises.forEach(p => {
+    const lbl = document.createElement('label');
+    lbl.className = 'ccheck';
+    lbl.innerHTML = `<input type="checkbox" class="lote-cb" value="${p}" checked><span title="${p}">${p}</span>`;
+    lbl.querySelector('input').onchange = loteContagem;
+    grid.appendChild(lbl);
+  });
+  document.getElementById('progWrap').style.display = 'none';
+  document.getElementById('btnZip').disabled = false;
+  document.getElementById('btnZip').textContent = '📥 Baixar ZIP';
+  document.getElementById('lblArquivo').textContent = '';
+  loteContagem();
+  document.getElementById('modalLote').classList.add('open');
+}
+
+function fecharModalLote() {
+  document.getElementById('modalLote').classList.remove('open');
+}
+
+function loteSelecionarTodos(val) {
+  document.querySelectorAll('.lote-cb').forEach(cb => cb.checked = val);
+  loteContagem();
+}
+
+function loteContagem() {
+  const n = document.querySelectorAll('.lote-cb:checked').length;
+  const t = document.querySelectorAll('.lote-cb').length;
+  document.getElementById('lblContagem').textContent = `${n} de ${t} países selecionados`;
+}
+
+async function exportarLote() {
+  const selecionados = [...document.querySelectorAll('.lote-cb:checked')].map(cb => cb.value);
+  if (!selecionados.length) return;
+
+  const transparente = document.querySelector('input[name="fundoLote"]:checked').value === 'transparente';
+  const tam = parseInt(document.getElementById('tamLote').value);
+  const colPais = document.getElementById('colPais').value;
+  const al = parseFloat(document.getElementById('rOpacity').value);
+  const bw = parseInt(document.getElementById('rEsp').value);
+  const pr = parseInt(document.getElementById('rPt').value);
+  const mostrarScore  = document.getElementById('loteScore')?.checked;
+  const mostrarPos    = document.getElementById('lotePosicao')?.checked;
+  const mostrarTitulo = document.getElementById('loteTitulo')?.checked;
+
+  const btn = document.getElementById('btnZip');
+  btn.disabled = true;
+  btn.textContent = 'Gerando…';
+  const progWrap = document.getElementById('progWrap');
+  const progFill = document.getElementById('progFill');
+  const progLabel = document.getElementById('progLabel');
+  progWrap.style.display = '';
+
+  const zip = new JSZip();
+
+  for (let i = 0; i < selecionados.length; i++) {
+    const pais = selecionados[i];
+    progLabel.textContent = `${i + 1} / ${selecionados.length} — ${pais}`;
+    progFill.style.width = ((i + 1) / selecionados.length * 100) + '%';
+
+    // Cores: bandeira ou personalizadas
+    let cl = document.getElementById('cLinha').value;
+    let cf = document.getElementById('cFundo').value;
+    if (modoBandeira) {
+      const b = getCorBandeira(pais);
+      if (b) { cl = b.c1; cf = b.c2; }
+    }
+
+    const cv = await comporRadarPNG({
+      pais, tam, transparente,
+      mostrarScore, mostrarPos, mostrarTitulo,
+      cl, cf, al, bw, pr
+    });
+    if (!cv) continue;
+
+    const slug = pais.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    zip.file(`radar_copa_${slug}.png`, cv.toDataURL('image/png').split(',')[1], { base64: true });
+    await new Promise(r => setTimeout(r, 20));
+  }
+
+  progLabel.textContent = 'Compactando ZIP…';
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `radares_copa2026_${selecionados.length}paises.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  progLabel.textContent = `✓ ${selecionados.length} PNGs exportados com sucesso!`;
+  progFill.style.background = 'var(--g700)';
+  document.getElementById('lblArquivo').textContent = `radares_copa2026_${selecionados.length}paises.zip`;
+  btn.disabled = false;
+  btn.textContent = '📥 Baixar ZIP';
+}
+</script>
+
+<!-- MODAL EXPORTAR EM LOTE -->
+<div class="modal-overlay" id="modalLote">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>📦 Exportar Radares em Lote</h3>
+      <button class="modal-close" onclick="fecharModalLote()" title="Fechar">✕</button>
+    </div>
+    <div class="modal-opts">
+      <div>
+        <label>Fundo</label>
+        <div class="radio-row">
+          <label><input type="radio" name="fundoLote" value="transparente" checked> Transparente</label>
+          <label><input type="radio" name="fundoLote" value="branco"> Branco</label>
+        </div>
+      </div>
+      <div>
+        <label>Tamanho</label>
+        <select id="tamLote" style="padding:5px 8px;font-size:12px;width:auto;">
+          <option value="600">600 × 600 px</option>
+          <option value="800" selected>800 × 800 px</option>
+          <option value="1200">1200 × 1200 px</option>
+        </select>
+      </div>
+      <div>
+        <label>Incluir no PNG</label>
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal;cursor:pointer;">
+            <input type="checkbox" id="loteScore" checked style="accent-color:var(--g700)"> Score
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal;cursor:pointer;">
+            <input type="checkbox" id="lotePosicao" style="accent-color:var(--g700)"> Posição
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:normal;cursor:pointer;">
+            <input type="checkbox" id="loteTitulo" checked style="accent-color:var(--g700)"> Nome
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-actions-top">
+        <span id="lblContagem">0 países selecionados</span>
+        <div class="selecao-btns">
+          <button onclick="loteSelecionarTodos(true)">✓ Todos</button>
+          <button onclick="loteSelecionarTodos(false)">✗ Nenhum</button>
+        </div>
+      </div>
+      <div class="country-grid-modal" id="loteGrid"></div>
+    </div>
+    <div class="prog-wrap" id="progWrap">
+      <div class="prog-label" id="progLabel">Processando…</div>
+      <div class="prog-bg"><div class="prog-fill" id="progFill"></div></div>
+    </div>
+    <div class="modal-foot">
+      <span id="lblArquivo" style="font-size:11px;color:var(--muted);"></span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline" style="width:auto;padding:7px 14px;" onclick="fecharModalLote()">Cancelar</button>
+        <button class="btn btn-primary" style="width:auto;padding:7px 14px;" id="btnZip" onclick="exportarLote()">📥 Baixar ZIP</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PÓDIO -->
+<div class="modal-overlay" id="modalPodio">
+  <div class="modal" style="width:600px;">
+    <div class="modal-head">
+      <h3>🏅 Pódio por Indicador</h3>
+      <button class="modal-close" onclick="fecharPodio()" title="Fechar">✕</button>
+    </div>
+    <div class="modal-opts">
+      <div style="flex:1;">
+        <label>Indicador / Eixo</label>
+        <select id="podioEixo" onchange="renderPodio()" style="width:100%;padding:6px 8px;font-size:13px;"></select>
+      </div>
+    </div>
+    <div class="modal-body" id="podioBody"></div>
+    <div class="modal-foot">
+      <span style="font-size:11px;color:var(--muted);">Ranking calculado sobre todos os países carregados</span>
+      <button class="btn btn-outline" style="width:auto;padding:7px 14px;" onclick="fecharPodio()">Fechar</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
