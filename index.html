@@ -938,6 +938,20 @@ function getImg(dataURL) {
   return im;
 }
 
+// Garante que todas as imagens dos eixos estejam carregadas (usado antes de exportar PNG)
+function precarregarImagensEixos() {
+  const pend = [];
+  for (const d of eixosImagens) {
+    if (!d) continue;
+    const im = getImg(d);
+    if (im && !im.complete) pend.push(new Promise(res => {
+      im.addEventListener('load', res, { once: true });
+      im.addEventListener('error', res, { once: true });
+    }));
+  }
+  return Promise.all(pend);
+}
+
 // Plugin: desenha imagens PNG no lugar do rótulo, com tamanho individual por eixo
 const pluginImagensEixos = {
   id: 'imagensEixos',
@@ -951,7 +965,7 @@ const pluginImagensEixos = {
       const im = getImg(data);
       if (!im || !im.complete || !im.naturalWidth) continue;
       const ang = (2 * Math.PI * i / n) - Math.PI / 2;
-      const rad = r.drawingArea + (labelsCurvos ? r.drawingArea * 0.10 : 26);
+      const rad = r.drawingArea + (labelsCurvos ? r.drawingArea * 0.12 : r.drawingArea * 0.09);
       const cx = r.xCenter + rad * Math.cos(ang);
       const cy = r.yCenter + rad * Math.sin(ang);
       const base = Math.max(22, r.drawingArea / 9) * (eixosTamanho[i] || 1);
@@ -2076,7 +2090,7 @@ async function comporRadarPNG(opts) {
   const tmp = new Chart(chartCtx, {
     type: 'radar',
     data: {
-      labels: eixos,
+      labels: getLabelsExibicao(),
       datasets: [{
         data: valores,
         backgroundColor: opts.usarGradiente ? (ctx2 => criarGradiente(ctx2, opts.cf, opts.al)) : hexRgba(opts.cf, opts.al),
@@ -2096,7 +2110,7 @@ async function comporRadarPNG(opts) {
           grid: { color: tema.grid },
           pointLabels: {
             display: !curvos,
-            font: { size: fLabel, weight: '700', family: fonteTitulo.replace(/"/g,'') },
+            font: (c) => ({ size: Math.round(fLabel * (eixosTamanho[c.index] || 1)), weight: '700', family: fonteTitulo.replace(/"/g,'') }),
             color: corRotulos
           },
           ticks: { stepSize: 20, backdropColor: 'transparent', color: tema.tick, font: { size: fTick } }
@@ -2105,6 +2119,7 @@ async function comporRadarPNG(opts) {
     }
   });
 
+  await precarregarImagensEixos();  // garante imagens carregadas no export
   tmp.draw();
   await new Promise(r => requestAnimationFrame(r));
 
