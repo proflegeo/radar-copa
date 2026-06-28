@@ -854,6 +854,7 @@ const EMOJI_EIXOS = {
 // Retorna os labels para exibição no gráfico (separa de eixos[] que são colunas de dados)
 function getLabelsExibicao() {
   return eixos.map((e, i) => {
+    if (eixosImagens[i]) return '';  // imagem substitui o texto do rótulo
     let label;
     if (modoLabel === 'emoji') {
       // Tenta match exato, depois parcial
@@ -884,6 +885,44 @@ function getLabelsExibicao() {
     return label;
   });
 }
+
+// Cache de imagens dos rótulos (dataURL -> Image); re-desenha ao terminar de carregar
+const imgCache = new Map();
+function getImg(dataURL) {
+  if (!dataURL) return null;
+  let im = imgCache.get(dataURL);
+  if (!im) {
+    im = new Image();
+    im.onload = () => { try { renderRadar(); } catch(_) {} };
+    im.src = dataURL;
+    imgCache.set(dataURL, im);
+  }
+  return im;
+}
+
+// Plugin: desenha imagens PNG no lugar do rótulo, com tamanho individual por eixo
+const pluginImagensEixos = {
+  id: 'imagensEixos',
+  afterDraw(chart) {
+    if (!mostrarRotulos) return;
+    const r = chart.scales.r; if (!r) return;
+    const n = eixos.length;
+    for (let i = 0; i < n; i++) {
+      const data = eixosImagens[i];
+      if (!data) continue;
+      const im = getImg(data);
+      if (!im || !im.complete || !im.naturalWidth) continue;
+      const ang = (2 * Math.PI * i / n) - Math.PI / 2;
+      const rad = r.drawingArea + (labelsCurvos ? r.drawingArea * 0.10 : 26);
+      const cx = r.xCenter + rad * Math.cos(ang);
+      const cy = r.yCenter + rad * Math.sin(ang);
+      const base = Math.max(22, r.drawingArea / 9) * (eixosTamanho[i] || 1);
+      const escala = base / Math.max(im.naturalWidth, im.naturalHeight);
+      const w = im.naturalWidth * escala, h = im.naturalHeight * escala;
+      chart.ctx.drawImage(im, cx - w / 2, cy - h / 2, w, h);
+    }
+  }
+};
 
 const pluginLabelsCustom = {
   id: 'labelsCustom',
@@ -956,6 +995,7 @@ const pluginLabelsCustom = {
   }
 };
 Chart.register(pluginLabelsCustom);
+Chart.register(pluginImagensEixos);
 
 // ─── INIT ─────────────────────────────────────────────────────
 window.onload = () => {
@@ -1601,7 +1641,7 @@ function renderRadar() {
           min: 0, max: 100,
           angleLines: { color: tema.angle },
           grid: { color: tema.grid },
-          pointLabels: { display: mostrarRotulos && !labelsCurvos, font: { size: tamanhoRotulo, weight: '700', family: 'Barlow Condensed' }, color: tema.label },
+          pointLabels: { display: mostrarRotulos && !labelsCurvos, font: (c) => ({ size: Math.round(tamanhoRotulo * (eixosTamanho[c.index] || 1)), weight: '700', family: 'Barlow Condensed' }), color: tema.label },
           ticks: { stepSize: 20, backdropColor: 'transparent', color: tema.tick, font: { size: 9 } }
         }
       }
