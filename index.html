@@ -795,8 +795,13 @@ function getLabelsExibicao() {
       // Tenta match exato, depois parcial
       label = EMOJI_EIXOS[e];
       if (!label) {
-        const slug = e.toLowerCase().slice(0, 5);
-        const key = Object.keys(EMOJI_EIXOS).find(k => k.toLowerCase().startsWith(slug));
+        // Match de prefixo bidirecional: cobre abreviações no mapa ('Demo' casa
+        // com a coluna 'Demografia') e também nomes de coluna mais curtos que a chave.
+        const eLower = e.toLowerCase();
+        const key = Object.keys(EMOJI_EIXOS).find(k => {
+          const kLower = k.toLowerCase();
+          return eLower.startsWith(kLower) || kLower.startsWith(eLower);
+        });
         label = key ? EMOJI_EIXOS[key] : e;
       }
     } else if (modoLabel === 'custom' && eixosLabels[i]) {
