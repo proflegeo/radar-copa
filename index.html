@@ -274,6 +274,9 @@
       transition: background 0.15s;
     }
     .btn-dl:hover { background: var(--g700); }
+    .btn-hist { background: #6B7280; padding: 8px 12px; font-size: 15px; line-height: 1; }
+    .btn-hist:hover { background: #4B5563; }
+    .btn-hist:disabled { opacity: .35; cursor: not-allowed; background: #6B7280; }
 
     /* Chart container */
     #chartWrap { position: relative; width: 100%; height: 100%; min-height: 0; }
@@ -601,6 +604,8 @@
       <span class="cname1">Aguardando Dados</span>
     </div>
     <div class="top-actions">
+      <button class="btn-dl btn-hist" id="btnUndo" title="Desfazer (Ctrl+Z)" onclick="desfazer()" disabled>↶</button>
+      <button class="btn-dl btn-hist" id="btnRedo" title="Refazer (Ctrl+Shift+Z)" onclick="refazer()" disabled>↷</button>
       <div class="score-badge" id="scoreBadge">
         <span class="score-num" id="scoreNum">—</span>
 
@@ -685,7 +690,11 @@ function podeRefazer(h) { return h.ptr < h.lista.length - 1; }
 let eixosImagens = [];   // dataURL PNG por eixo (ou null)
 let eixosTamanho = [];   // fator de escala por eixo (padrão 1)
 const HIST = { lista: [], ptr: -1 };
-function atualizarBotoesHistorico() {}  // substituído na Task 6
+function atualizarBotoesHistorico() {
+  const u = document.getElementById('btnUndo'), r = document.getElementById('btnRedo');
+  if (u) u.disabled = !podeDesfazer(HIST);
+  if (r) r.disabled = !podeRefazer(HIST);
+}
 
 function sincronizarArraysEixos() {
   for (let i = 0; i < eixos.length; i++) {
@@ -716,6 +725,29 @@ function commit() {
   histPush(HIST, snapshotConfig(), 50);
   atualizarBotoesHistorico();
 }
+
+// Reaplica um snapshot do histórico (NÃO empilha — senão criaria loop)
+function aplicarSnapshot(snap) {
+  if (!snap) return;
+  const c = JSON.parse(JSON.stringify(snap));
+  eixos = c.eixos; eixosLabels = c.eixosLabels;
+  eixosImagens = c.eixosImagens; eixosTamanho = c.eixosTamanho;
+  temaAtual = c.tema; modoLabel = c.modoLabel;
+  document.getElementById('cLinha').value = c.cLinha;
+  document.getElementById('cFundo').value = c.cFundo;
+  document.getElementById('rOpacity').value = c.opacidade;
+  document.getElementById('rEsp').value = c.espessura;
+  document.getElementById('rPt').value = c.ponto;
+  document.getElementById('lblOp').textContent = Math.round(c.opacidade*100)+'%';
+  document.getElementById('lblEsp').textContent = c.espessura+'px';
+  document.getElementById('lblPt').textContent = c.ponto+'px';
+  document.querySelectorAll('.tema-btn').forEach(b => b.classList.toggle('on', b.dataset.tema === temaAtual));
+  ['texto','emoji','custom'].forEach(m => document.getElementById('modoBtn_'+m)?.classList.toggle('on', m === modoLabel));
+  salvarConfig();
+  renderAxisList(); renderRadar(); renderCards();
+}
+function desfazer() { const s = histUndo(HIST); if (s) { aplicarSnapshot(s); atualizarBotoesHistorico(); } }
+function refazer() { const s = histRedo(HIST); if (s) { aplicarSnapshot(s); atualizarBotoesHistorico(); } }
 
 const ctx = document.getElementById('radarChart').getContext('2d');
 
@@ -811,7 +843,7 @@ function aplicarTema(nome) {
   document.querySelectorAll('.tema-btn').forEach(b => {
     b.classList.toggle('on', b.dataset.tema === nome);
   });
-  salvarConfig();
+  commit();
   renderRadar();
 }
 
@@ -1175,7 +1207,7 @@ function renderAxisList() {
     colunas.filter(col => col !== cp).forEach(col => {
       const o = new Option(col, col); if (col === e) o.selected = true; sel.appendChild(o);
     });
-    sel.onchange = () => { eixos[i] = sel.value; salvarConfig(); renderRadar(); renderCards(); };
+    sel.onchange = () => { eixos[i] = sel.value; renderRadar(); renderCards(); commit(); };
 
     // Campo de label customizado (visível só no modo 'custom')
     const inp = document.createElement('input');
@@ -1305,11 +1337,20 @@ function restaurarOrdemNarrativa() {
   // Anexa quaisquer eixos restantes que estavam ativos e não entraram
   eixos.forEach(e => { if (!novos.includes(e) && disponiveis.includes(e)) novos.push(e); });
   if (novos.length) {
-    eixos = novos;
+    // Carrega rótulo/imagem/tamanho de cada eixo para a nova ordem
+    const nl = [], ni = [], nt = [];
+    novos.forEach(val => {
+      const j = eixos.indexOf(val);
+      nl.push(j >= 0 ? eixosLabels[j] : '');
+      ni.push(j >= 0 ? eixosImagens[j] : null);
+      nt.push(j >= 0 ? eixosTamanho[j] : 1);
+    });
+    eixos = novos; eixosLabels = nl; eixosImagens = ni; eixosTamanho = nt;
+    sincronizarArraysEixos();
     renderAxisList();
-    salvarConfig();
     renderRadar();
     renderCards();
+    commit();
   }
 }
 
@@ -1355,18 +1396,18 @@ function toggleBandeira() {
 function toggleMedia() {
   mostrarMedia = !mostrarMedia;
   document.getElementById('swMedia').classList.toggle('on', mostrarMedia);
-  salvarConfig(); renderRadar();
+  commit(); renderRadar();
 }
 function toggleDestaques() {
   mostrarDestaques = !mostrarDestaques;
   document.getElementById('swDestaque').classList.toggle('on', mostrarDestaques);
   if (mostrarDestaques) calcularStats();
-  salvarConfig(); renderRadar();
+  commit(); renderRadar();
 }
 function toggleGradiente() {
   usarGradiente = !usarGradiente;
   document.getElementById('swGradiente').classList.toggle('on', usarGradiente);
-  salvarConfig(); renderRadar();
+  commit(); renderRadar();
 }
 
 // ─── PERSISTÊNCIA DE CONFIGURAÇÕES ───────────────────────────
@@ -1423,19 +1464,19 @@ function carregarConfig() {
 function toggleRotulos() {
   mostrarRotulos = !mostrarRotulos;
   document.getElementById('swRotulos').classList.toggle('on', mostrarRotulos);
-  salvarConfig(); renderRadar();
+  commit(); renderRadar();
 }
 
 function setTamanhoRotulo(v) {
   tamanhoRotulo = parseInt(v);
   document.getElementById('lblRotulo').textContent = v + 'px';
-  salvarConfig(); renderRadar();
+  commit(); renderRadar();
 }
 
 function toggleQuebrarLinhas() {
   quebrarLinhas = !quebrarLinhas;
   document.getElementById('swQuebrar').classList.toggle('on', quebrarLinhas);
-  salvarConfig(); renderRadar();
+  commit(); renderRadar();
 }
 
 function setModoLabel(modo) {
@@ -1443,11 +1484,9 @@ function setModoLabel(modo) {
   ['texto','emoji','custom'].forEach(m => {
     document.getElementById('modoBtn_'+m).classList.toggle('on', m === modo);
   });
-  // Mostra/oculta campos de input customizado na lista de eixos
-  document.querySelectorAll('.axis-label-input').forEach(el => {
-    el.style.display = modo === 'custom' ? '' : 'none';
-  });
-  salvarConfig(); renderRadar();
+  // Reconstrói a lista para mostrar/ocultar os controles custom (texto/imagem/tamanho)
+  if (dados.length) renderAxisList();
+  commit(); renderRadar();
 }
 
 function getCorBandeira(pais) {
@@ -1776,12 +1815,14 @@ function configurarDragRadar() {
     canvas.classList.remove('dragging-label');
     document.getElementById('dragHint').classList.remove('show');
     if (from !== null && to !== null && from !== to) {
-      // TROCA os dois eixos
-      const tmp = eixos[from]; eixos[from] = eixos[to]; eixos[to] = tmp;
+      // TROCA os dois eixos (e seus rótulos/imagens/tamanhos juntos)
+      for (const a of [eixos, eixosLabels, eixosImagens, eixosTamanho]) {
+        const tmp = a[from]; a[from] = a[to]; a[to] = tmp;
+      }
       renderAxisList();
-      salvarConfig();
       renderRadar();
       renderCards();
+      commit();
     } else {
       renderRadar(); // limpa overlay
     }
@@ -1955,6 +1996,15 @@ document.addEventListener('keydown', e => {
   if (!dados.length) return;
   const tag = document.activeElement.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  // Desfazer / Refazer (fora de campos de texto — neles vale o desfazer nativo)
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) refazer(); else desfazer();
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+    e.preventDefault(); refazer(); return;
+  }
   const sel = document.getElementById('pais1');
   if (e.key === 'ArrowLeft' && sel.selectedIndex > 0) { sel.selectedIndex--; atualizar(); }
   else if (e.key === 'ArrowRight' && sel.selectedIndex < sel.options.length-1) { sel.selectedIndex++; atualizar(); }
