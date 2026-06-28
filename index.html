@@ -530,27 +530,27 @@
       <div class="design-row">
         <div class="design-col">
           <label>Borda</label>
-          <input type="color" id="cLinha" value="#1B5E20" oninput="renderRadar()">
+          <input type="color" id="cLinha" value="#1B5E20" oninput="renderRadar()" onchange="commit()">
         </div>
         <div class="design-col">
           <label>Preench.</label>
-          <input type="color" id="cFundo" value="#43A047" oninput="renderRadar()">
+          <input type="color" id="cFundo" value="#43A047" oninput="renderRadar()" onchange="commit()">
         </div>
       </div>
       <div class="form-row">
         <div class="range-label"><label>Opacidade</label><span id="lblOp">15%</span></div>
         <input type="range" id="rOpacity" min="0" max="1" step="0.05" value="0.15"
-          oninput="document.getElementById('lblOp').textContent=Math.round(this.value*100)+'%'; renderRadar()">
+          oninput="document.getElementById('lblOp').textContent=Math.round(this.value*100)+'%'; renderRadar()" onchange="commit()">
       </div>
       <div class="form-row">
         <div class="range-label"><label>Espessura da linha</label><span id="lblEsp">3px</span></div>
         <input type="range" id="rEsp" min="1" max="10" step="1" value="3"
-          oninput="document.getElementById('lblEsp').textContent=this.value+'px'; renderRadar()">
+          oninput="document.getElementById('lblEsp').textContent=this.value+'px'; renderRadar()" onchange="commit()">
       </div>
       <div class="form-row">
         <div class="range-label"><label>Tamanho do ponto</label><span id="lblPt">5px</span></div>
         <input type="range" id="rPt" min="0" max="15" step="1" value="5"
-          oninput="document.getElementById('lblPt').textContent=this.value+'px'; renderRadar()">
+          oninput="document.getElementById('lblPt').textContent=this.value+'px'; renderRadar()" onchange="commit()">
       </div>
       <div class="toggle-row">
         <button id="btnLabels" class="btn-toggle" onclick="toggleLabels()" title="Rótulos acompanham a curva do radar">🔡 Rótulos Curvos</button>
@@ -572,7 +572,7 @@
       <div class="form-row">
         <div class="range-label"><label>Tamanho da fonte</label><span id="lblRotulo">13px</span></div>
         <input type="range" id="rRotulo" min="8" max="26" step="1" value="13"
-          oninput="setTamanhoRotulo(this.value)">
+          oninput="setTamanhoRotulo(this.value)" onchange="commit()">
       </div>
       <div class="switch-row">
         <span class="switch-label"><span class="si">↩️</span> Quebrar linhas longas</span>
@@ -737,31 +737,38 @@ function sincronizarArraysEixos() {
   eixosTamanho.length = eixos.length;
 }
 
+const HIST_MAX = 20;  // teto de snapshots no histórico (memória)
+// Snapshot com CÓPIA RASA dos arrays: as strings base64 das imagens são
+// compartilhadas por referência entre snapshots (imutáveis) — não duplica memória.
 function snapshotConfig() {
-  return JSON.parse(JSON.stringify({
-    eixos, eixosLabels, eixosImagens, eixosTamanho,
+  return {
+    eixos: eixos.slice(),
+    eixosLabels: eixosLabels.slice(),
+    eixosImagens: eixosImagens.slice(),
+    eixosTamanho: eixosTamanho.slice(),
     tema: temaAtual, modoLabel,
     cLinha: document.getElementById('cLinha').value,
     cFundo: document.getElementById('cFundo').value,
     opacidade: document.getElementById('rOpacity').value,
     espessura: document.getElementById('rEsp').value,
     ponto: document.getElementById('rPt').value
-  }));
+  };
 }
 
 // Toda ação mutadora chama commit(): persiste + empilha no histórico.
 function commit() {
   salvarConfig();
-  histPush(HIST, snapshotConfig(), 50);
+  histPush(HIST, snapshotConfig(), HIST_MAX);
   atualizarBotoesHistorico();
 }
 
 // Reaplica um snapshot do histórico (NÃO empilha — senão criaria loop)
 function aplicarSnapshot(snap) {
   if (!snap) return;
-  const c = JSON.parse(JSON.stringify(snap));
-  eixos = c.eixos; eixosLabels = c.eixosLabels;
-  eixosImagens = c.eixosImagens; eixosTamanho = c.eixosTamanho;
+  const c = snap;
+  // cópia rasa para a UI mutar sem corromper o snapshot guardado
+  eixos = c.eixos.slice(); eixosLabels = c.eixosLabels.slice();
+  eixosImagens = c.eixosImagens.slice(); eixosTamanho = c.eixosTamanho.slice();
   temaAtual = c.tema; modoLabel = c.modoLabel;
   document.getElementById('cLinha').value = c.cLinha;
   document.getElementById('cFundo').value = c.cFundo;
@@ -1191,7 +1198,7 @@ function processarDados(linhas, msg) {
   inicializarStudio();   // prepara selects de fonte para lerEstiloStudio() funcionar no lote
   // Semeia o histórico com o estado inicial (baseline do desfazer)
   HIST.lista = []; HIST.ptr = -1;
-  histPush(HIST, snapshotConfig(), 50);
+  histPush(HIST, snapshotConfig(), HIST_MAX);
   atualizarBotoesHistorico();
 }
 
@@ -1271,7 +1278,7 @@ function renderAxisList() {
     colunas.filter(col => col !== cp).forEach(col => {
       const o = new Option(col, col); if (col === e) o.selected = true; sel.appendChild(o);
     });
-    sel.onchange = () => { eixos[i] = sel.value; renderRadar(); renderCards(); commit(); };
+    sel.onchange = () => { eixos[i] = sel.value; statsMundiais = null; renderRadar(); renderCards(); commit(); };
 
     // Campo de label customizado (visível só no modo 'custom')
     const inp = document.createElement('input');
@@ -1411,6 +1418,7 @@ function restaurarOrdemNarrativa() {
     });
     eixos = novos; eixosLabels = nl; eixosImagens = ni; eixosTamanho = nt;
     sincronizarArraysEixos();
+    statsMundiais = null;  // eixos podem ter mudado: recalcular estatísticas
     renderAxisList();
     renderRadar();
     renderCards();
@@ -1421,7 +1429,7 @@ function restaurarOrdemNarrativa() {
 function addEixo() {
   const cp = document.getElementById('colPais').value;
   const nova = colunas.find(c => c !== cp && !eixos.includes(c)) || colunas.find(c => c !== cp);
-  if (nova) { eixos.push(nova); sincronizarArraysEixos(); renderAxisList(); renderRadar(); renderCards(); commit(); }
+  if (nova) { eixos.push(nova); sincronizarArraysEixos(); statsMundiais = null; renderAxisList(); renderRadar(); renderCards(); commit(); }
 }
 
 // Redimensiona um arquivo de imagem para no máx. `maxLado` px e retorna dataURL PNG
@@ -1486,7 +1494,13 @@ function salvarConfig() {
     espessura: document.getElementById('rEsp').value,
     ponto: document.getElementById('rPt').value
   };
-  try { localStorage.setItem('copaConfig', JSON.stringify(cfg)); } catch(e) {}
+  try {
+    localStorage.setItem('copaConfig', JSON.stringify(cfg));
+  } catch(e) {
+    // Quota estourada (geralmente imagens grandes): avisa em vez de perder em silêncio
+    const quota = e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014);
+    if (quota) setStatus('As imagens ocuparam todo o espaço do navegador — a configuração pode não ser salva. Remova alguma imagem de eixo.', true);
+  }
 }
 
 function carregarConfig() {
@@ -1534,7 +1548,7 @@ function toggleRotulos() {
 function setTamanhoRotulo(v) {
   tamanhoRotulo = parseInt(v);
   document.getElementById('lblRotulo').textContent = v + 'px';
-  commit(); renderRadar();
+  renderRadar();   // commit() vem do onchange (ao soltar), não a cada pixel
 }
 
 function toggleQuebrarLinhas() {
@@ -2485,8 +2499,11 @@ async function exportarLote() {
 
     const slug = pais.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-    zip.file(`radar_copa_${slug}.png`, cv.toDataURL('image/png').split(',')[1], { base64: true });
-    await new Promise(r => setTimeout(r, 20));
+    // toBlob evita a string base64 gigante; cede a thread sem sleep fixo
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    if (blob) zip.file(`radar_copa_${slug}.png`, blob);
+    cv.width = cv.height = 0;  // libera mem\u00f3ria do canvas
+    await new Promise(r => requestAnimationFrame(r));
   }
 
   progLabel.textContent = 'Compactando ZIP…';
