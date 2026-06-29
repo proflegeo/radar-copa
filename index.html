@@ -134,6 +134,9 @@
       letter-spacing: -2px;
     }
     .axis-handle:active { cursor: grabbing; }
+    .axis-move { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 8px; line-height: 1; cursor: pointer; padding: 3px 3px; flex-shrink: 0; }
+    .axis-move:hover:not(:disabled) { border-color: var(--g500); color: var(--g700); background: var(--g100); }
+    .axis-move:disabled { opacity: .3; cursor: default; }
     .axis-row:hover .axis-handle { color: var(--g500); }
     .axis-row.dragging { opacity: 0.4; }
     .axis-row.drop-above::before, .axis-row.drop-below::after {
@@ -1315,6 +1318,18 @@ function renderAxisList() {
     num.className = 'axis-num';
     num.textContent = (i+1)+'º';
 
+    // Botões ▲▼ — reordenar por toque/teclado (alternativa ao arraste)
+    const up = document.createElement('button');
+    up.className = 'axis-move'; up.textContent = '▲'; up.title = 'Mover para cima';
+    up.setAttribute('aria-label', 'Mover ' + e + ' para cima');
+    up.disabled = i === 0; up.draggable = false;
+    up.onclick = () => moverEixo(i, i - 1);
+    const down = document.createElement('button');
+    down.className = 'axis-move'; down.textContent = '▼'; down.title = 'Mover para baixo';
+    down.setAttribute('aria-label', 'Mover ' + e + ' para baixo');
+    down.disabled = i === eixos.length - 1; down.draggable = false;
+    down.onclick = () => moverEixo(i, i + 1);
+
     const sel = document.createElement('select');
     sel.draggable = false;
     colunas.filter(col => col !== cp).forEach(col => {
@@ -1425,8 +1440,8 @@ function renderAxisList() {
       commit();
     });
 
-    // Linha principal (sempre): alça + nº + coluna + remover eixo
-    row.append(handle, num, sel, rm);
+    // Linha principal (sempre): alça + nº + mover + coluna + remover eixo
+    row.append(handle, num, up, down, sel, rm);
     // Sub-linha custom (só no modo Custom): rótulo + imagem + tamanho — indentada
     const customRow = document.createElement('div');
     customRow.className = 'axis-custom';
@@ -1482,6 +1497,13 @@ function addEixo() {
   const cp = document.getElementById('colPais').value;
   const nova = colunas.find(c => c !== cp && !eixos.includes(c)) || colunas.find(c => c !== cp);
   if (nova) { eixos.push(nova); sincronizarArraysEixos(); statsMundiais = null; renderAxisList(); renderRadar(); renderCards(); commit(); }
+}
+
+// Reordena um eixo (e seus rótulo/imagem/tamanho juntos) — usado pelos botões ▲▼
+function moverEixo(from, to) {
+  if (to < 0 || to >= eixos.length || from === to) return;
+  moverParalelo({ eixos, eixosLabels, eixosImagens, eixosTamanho }, from, to);
+  renderAxisList(); renderRadar(); renderCards(); commit();
 }
 
 // Redimensiona um arquivo de imagem para no máx. `maxLado` px e retorna dataURL PNG
@@ -1888,14 +1910,17 @@ function abrirEditorInline(idx, pos) {
   let fechado = false;
   const commitEd = () => {
     if (fechado) return; fechado = true;
-    eixosLabels[idx] = ed.value;
+    const v = ed.value.trim();
     if (ed.parentNode) ed.parentNode.removeChild(ed);
-    renderAxisList(); renderRadar(); commit();
+    if (v === '') { renderRadar(); return; }   // vazio: mantém o rótulo anterior
+    eixosLabels[idx] = v;
+    if (modoLabel !== 'custom') setModoLabel('custom');  // entra em custom só ao confirmar (já re-renderiza + commit)
+    else { renderAxisList(); renderRadar(); commit(); }
   };
   ed.onkeydown = e => {
     e.stopPropagation();
     if (e.key === 'Enter') { e.preventDefault(); commitEd(); }
-    else if (e.key === 'Escape') { fechado = true; if (ed.parentNode) ed.parentNode.removeChild(ed); }
+    else if (e.key === 'Escape') { fechado = true; if (ed.parentNode) ed.parentNode.removeChild(ed); renderRadar(); }
   };
   ed.onblur = commitEd;
   wrap.appendChild(ed);
@@ -1907,13 +1932,12 @@ function configurarDragRadar() {
   if (!canvas || canvas._dragConfigured) return;
   canvas._dragConfigured = true;
 
-  // Duplo-clique num rótulo = editar inline (entra no modo custom se preciso)
+  // Duplo-clique num rótulo = editar inline (só vira custom ao confirmar a edição)
   canvas.addEventListener('dblclick', ev => {
     const { x, y } = coordsCanvas(ev);
     const idx = rotuloMaisProximo(x, y, 45);
     if (idx === null) return;
     ev.preventDefault();
-    if (modoLabel !== 'custom') setModoLabel('custom');
     const pos = getPosicoesRotulos().find(p => p.idx === idx);
     if (pos) abrirEditorInline(idx, pos);
   });
@@ -1925,10 +1949,14 @@ function configurarDragRadar() {
       radarDrag.overIdx = rotuloMaisProximo(x, y, 60);
       desenharOverlayDrag();
     } else {
-      // hover: muda cursor se sobre um rótulo
+      // hover: muda cursor e revela a dica proativamente quando sobre um rótulo
       const sobre = rotuloMaisProximo(x, y, 45);
       canvas.classList.toggle('dragmode', sobre !== null);
+      document.getElementById('dragHint').classList.toggle('show', sobre !== null);
     }
+  });
+  canvas.addEventListener('mouseleave', () => {
+    if (!radarDrag.active) document.getElementById('dragHint').classList.remove('show');
   });
 
   canvas.addEventListener('mousedown', ev => {
