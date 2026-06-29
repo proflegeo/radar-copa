@@ -39,6 +39,22 @@
       overflow: hidden;
     }
 
+    /* Responsivo: tablet/celular/projetor/iframe estreito — empilha sidebar sobre o gráfico */
+    @media (max-width: 820px) {
+      body {
+        grid-template-columns: 1fr;
+        grid-template-rows: var(--header) auto 1fr;
+        height: auto;
+        min-height: 100vh;
+        overflow: auto;
+      }
+      aside { border-right: none; border-bottom: 1px solid var(--border); max-height: 46vh; }
+      main { overflow: visible; padding: 12px 12px 20px; }
+      #chartWrap { min-height: 320px; }
+      #scoreGrid { grid-template-columns: repeat(2, 1fr); }
+      .kb-hint { display: none; }
+    }
+
     /* ── HEADER ─────────────────────────────────────── */
     header {
       grid-column: 1 / -1;
@@ -266,7 +282,7 @@
     .score-badge.visible { display: flex; }
     .score-num { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 700; color: var(--g900); }
     .score-denom { font-size: 11px; color: var(--muted); }
-    .top-actions { display: flex; gap: 8px; }
+    .top-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
     .btn-dl {
       background: var(--g900); color: white; border: none;
       padding: 8px 16px; border-radius: 6px; font-size: 12px;
@@ -305,7 +321,7 @@
     .awaiting p { font-size: 13px; max-width: 320px; }
 
     /* Score grid */
-    #scoreGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    #scoreGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
     .scard {
       background: var(--white); border: 1px solid var(--border);
       border-radius: 8px; padding: 9px 11px 12px;
@@ -373,15 +389,17 @@
 
     /* Rótulos customizados */
     .axis-label-input {
-      width: 68px; padding: 4px 5px; font-size: 15px; border: 1px dashed var(--g500);
+      flex: 1; min-width: 0; padding: 4px 5px; font-size: 15px; border: 1px dashed var(--g500);
       border-radius: 5px; background: var(--g100); text-align: center;
-      flex-shrink: 0; color: var(--text);
+      color: var(--text);
     }
     .axis-label-input:focus { outline: none; border-color: var(--g700); background: white; }
     .axis-img-btn { cursor: pointer; font-size: 14px; padding: 0 2px; user-select: none; flex-shrink: 0; line-height: 1; }
     .axis-img-btn:hover { filter: brightness(1.15); }
-    .axis-size { width: 50px; accent-color: var(--g700); flex-shrink: 0; }
+    .axis-size { width: 54px; accent-color: var(--g700); flex-shrink: 0; }
     .axis-row { flex-wrap: wrap; }
+    /* Sub-linha custom (rótulo/imagem/tamanho) numa segunda linha indentada e intencional */
+    .axis-custom { flex: 0 0 100%; display: flex; align-items: center; gap: 6px; padding-left: 24px; margin-top: 5px; }
     .modo-row { display: flex; gap: 4px; margin-top: 8px; }
     .modo-btn {
       flex: 1; padding: 6px 4px; border: 1px solid var(--border); border-radius: 6px;
@@ -1380,7 +1398,14 @@ function renderAxisList() {
       commit();
     });
 
-    row.append(handle, num, sel, inp, imgBtn, imgRm, size, rm);
+    // Linha principal (sempre): alça + nº + coluna + remover eixo
+    row.append(handle, num, sel, rm);
+    // Sub-linha custom (só no modo Custom): rótulo + imagem + tamanho — indentada
+    const customRow = document.createElement('div');
+    customRow.className = 'axis-custom';
+    customRow.style.display = modoLabel === 'custom' ? '' : 'none';
+    customRow.append(inp, imgBtn, imgRm, size);
+    row.append(customRow);
     c.appendChild(row);
   });
 }
@@ -1731,6 +1756,11 @@ function renderRadar() {
     });
   }
 
+  // Padding proporcional ao container (não corta o radar/rótulos em telas pequenas)
+  const wrapEl = document.getElementById('chartWrap');
+  const menorDim = Math.min(wrapEl.clientWidth || 400, wrapEl.clientHeight || 400);
+  const padChart = Math.max(18, Math.round(menorDim * (labelsCurvos ? 0.12 : 0.06)));
+
   if (grafico) grafico.destroy();
   grafico = new Chart(ctx, {
     type: 'radar',
@@ -1738,8 +1768,7 @@ function renderRadar() {
     options: {
       animation: { duration: 350 },
       responsive: true, maintainAspectRatio: false,
-      // Padding extra quando rótulos curvos ativos (ocupam mais raio que os normais)
-      layout: { padding: labelsCurvos ? 66 : 28 },
+      layout: { padding: padChart },
       plugins: {
         legend: {
           display: comparando || (mostrarMedia && !comparando), position: 'top',
@@ -2236,7 +2265,8 @@ async function comporRadarPNG(opts) {
 
     cx2.fillStyle = scoreBg;
     cx2.beginPath();
-    cx2.roundRect(bx, by, bw2, bh2, tam * 0.018);
+    if (cx2.roundRect) cx2.roundRect(bx, by, bw2, bh2, tam * 0.018);
+    else cx2.rect(bx, by, bw2, bh2);   // fallback p/ navegadores sem roundRect
     cx2.fill();
 
     cx2.font = `700 ${fScore}px ${fonteScore},sans-serif`;
@@ -2383,12 +2413,13 @@ async function renderStudio() {
   tctx.drawImage(cv, 0, 0);
 }
 
-async function baixarStudio() {
+async function baixarStudio(btn) {
   const tam = parseInt(document.getElementById('exResolucao').value);
-  const btn = event.target;
-  btn.textContent = 'Gerando…'; btn.disabled = true;
-  const cv = await gerarCanvasStudio(tam);
-  btn.textContent = '📥 Baixar PNG'; btn.disabled = false;
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = 'Gerando…'; btn.disabled = true; }
+  let cv = null;
+  try { cv = await gerarCanvasStudio(tam); }
+  finally { if (btn) { btn.textContent = orig; btn.disabled = false; } }  // botão nunca trava
   if (!cv) return;
   const p1 = document.getElementById('pais1').value;
   const slug = p1.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -2473,6 +2504,7 @@ async function exportarLote() {
   const progLabel = document.getElementById('progLabel');
   progWrap.style.display = '';
 
+  try {
   const zip = new JSZip();
 
   for (let i = 0; i < selecionados.length; i++) {
@@ -2518,8 +2550,12 @@ async function exportarLote() {
   progLabel.textContent = `✓ ${selecionados.length} PNGs exportados com sucesso!`;
   progFill.style.background = 'var(--g700)';
   document.getElementById('lblArquivo').textContent = `radares_copa2026_${selecionados.length}paises.zip`;
-  btn.disabled = false;
-  btn.textContent = '📥 Baixar ZIP';
+  } catch (e) {
+    progLabel.textContent = 'Não consegui gerar o ZIP. Tente menos países ou um tamanho menor.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📥 Baixar ZIP';
+  }
 }
 </script>
 
@@ -2710,7 +2746,7 @@ async function exportarLote() {
       <span style="font-size:11px;color:var(--muted);" id="studioInfo">Preview ao vivo — ajuste e baixe</span>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-outline" style="width:auto;padding:8px 16px;" onclick="fecharStudio()">Cancelar</button>
-        <button class="btn btn-primary" style="width:auto;padding:8px 20px;" onclick="baixarStudio()">📥 Baixar PNG</button>
+        <button class="btn btn-primary" style="width:auto;padding:8px 20px;" onclick="baixarStudio(this)">📥 Baixar PNG</button>
       </div>
     </div>
   </div>
