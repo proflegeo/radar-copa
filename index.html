@@ -78,7 +78,7 @@
       padding: 2px 8px; border-radius: 100px;
       letter-spacing: 0.1em; text-transform: uppercase;
     }
-    .kb-hint { font-size: 11px; color: rgba(255,255,255,0.55); }
+    .kb-hint { font-size: 11px; color: rgba(255,255,255,0.85); }
     .kb-hint kbd {
       background: rgba(255,255,255,0.15); border-radius: 3px;
       padding: 1px 5px; font-size: 10px; font-family: monospace; color: white;
@@ -394,8 +394,9 @@
       color: var(--text);
     }
     .axis-label-input:focus { outline: none; border-color: var(--g700); background: white; }
-    .axis-img-btn { cursor: pointer; font-size: 14px; padding: 0 2px; user-select: none; flex-shrink: 0; line-height: 1; }
+    .axis-img-btn { cursor: pointer; font-size: 14px; padding: 1px 3px; user-select: none; flex-shrink: 0; line-height: 1; border-radius: 5px; border: 1.5px solid transparent; }
     .axis-img-btn:hover { filter: brightness(1.15); }
+    .axis-img-btn.tem-img { border-color: var(--g500); background: var(--g100); box-shadow: 0 0 0 1px var(--g100); }
     .axis-size { width: 54px; accent-color: var(--g700); flex-shrink: 0; }
     .axis-row { flex-wrap: wrap; }
     /* Sub-linha custom (rótulo/imagem/tamanho) numa segunda linha indentada e intencional */
@@ -622,8 +623,8 @@
       <span class="cname1">Aguardando Dados</span>
     </div>
     <div class="top-actions">
-      <button class="btn-dl btn-hist" id="btnUndo" title="Desfazer (Ctrl+Z)" onclick="desfazer()" disabled>↶</button>
-      <button class="btn-dl btn-hist" id="btnRedo" title="Refazer (Ctrl+Shift+Z)" onclick="refazer()" disabled>↷</button>
+      <button class="btn-dl btn-hist" id="btnUndo" title="Desfazer (Ctrl+Z)" aria-label="Desfazer" onclick="desfazer()" disabled>↶</button>
+      <button class="btn-dl btn-hist" id="btnRedo" title="Refazer (Ctrl+Shift+Z)" aria-label="Refazer" onclick="refazer()" disabled>↷</button>
       <div class="score-badge" id="scoreBadge">
         <span class="score-num" id="scoreNum">—</span>
 
@@ -647,7 +648,7 @@
       <h2>Copa da Geografia 2026</h2>
       <p>Conecte uma planilha via link ou cole os dados da aba <strong>Grafico_Radar</strong> na barra lateral.</p>
     </div>
-    <canvas id="radarChart"></canvas>
+    <canvas id="radarChart" role="img" aria-label="Gráfico radar dos indicadores do país" aria-describedby="scoreGrid"></canvas>
   </div>
 
   <!-- SCORE CARDS -->
@@ -742,6 +743,28 @@ function atualizarBotoesHistorico() {
   const u = document.getElementById('btnUndo'), r = document.getElementById('btnRedo');
   if (u) u.disabled = !podeDesfazer(HIST);
   if (r) r.disabled = !podeRefazer(HIST);
+}
+
+// Sincroniza aria-checked de todos os switches/toggles a partir da classe .on (acessibilidade)
+function syncAriaSwitches() {
+  document.querySelectorAll('.switch, .mini-switch, .btn-toggle, .tema-btn, .modo-btn').forEach(s => {
+    s.setAttribute('aria-checked', s.classList.contains('on') ? 'true' : 'false');
+  });
+}
+
+// Abre/fecha modais com gestão de foco (acessibilidade por teclado)
+let _focoAnterior = null;
+function abrirOverlay(id) {
+  _focoAnterior = document.activeElement;
+  const m = document.getElementById(id);
+  m.classList.add('open');
+  const alvo = m.querySelector('.modal-close') || m.querySelector('button, select, input, [tabindex]');
+  if (alvo) alvo.focus();
+}
+function fecharOverlay(id) {
+  document.getElementById(id).classList.remove('open');
+  if (_focoAnterior && _focoAnterior.focus) { try { _focoAnterior.focus(); } catch(_) {} }
+  _focoAnterior = null;
 }
 
 function sincronizarArraysEixos() {
@@ -1285,6 +1308,7 @@ function renderAxisList() {
     const handle = document.createElement('span');
     handle.className = 'axis-handle';
     handle.textContent = '⠿';
+    handle.setAttribute('aria-hidden', 'true');
     handle.title = 'Arraste para reordenar';
 
     const num = document.createElement('span');
@@ -1315,9 +1339,10 @@ function renderAxisList() {
 
     // Botão de imagem PNG (substitui o rótulo por uma imagem)
     const imgBtn = document.createElement('label');
-    imgBtn.className = 'axis-img-btn';
+    imgBtn.className = 'axis-img-btn' + (eixosImagens[i] ? ' tem-img' : '');
     imgBtn.title = 'Usar imagem PNG no lugar do rótulo';
-    imgBtn.textContent = eixosImagens[i] ? '🖼️*' : '🖼️';
+    imgBtn.setAttribute('aria-label', 'Imagem do eixo ' + e);
+    imgBtn.textContent = eixosImagens[i] ? '🖼️' : '🖼️';
     imgBtn.style.display = modoLabel === 'custom' ? '' : 'none';
     const imgInput = document.createElement('input');
     imgInput.type = 'file'; imgInput.accept = '.png,.jpg,.jpeg'; imgInput.style.display = 'none';
@@ -1351,6 +1376,8 @@ function renderAxisList() {
     const rm = document.createElement('button');
     rm.className = 'btn-rm';
     rm.textContent = '✕';
+    rm.title = 'Remover eixo';
+    rm.setAttribute('aria-label', 'Remover eixo ' + e);
     rm.draggable = false;
     rm.onclick = () => {
       eixos.splice(i,1); eixosLabels.splice(i,1); eixosImagens.splice(i,1); eixosTamanho.splice(i,1);
@@ -1805,6 +1832,7 @@ function renderRadar() {
   window._tamanhoRotulo = tamanhoRotulo;
   // Ativa arrasto de rótulos no radar (configura uma vez; sobrevive a re-renders)
   configurarDragRadar();
+  syncAriaSwitches();
 }
 let radarDrag = { active: false, fromIdx: null, overIdx: null, mouseX: 0, mouseY: 0 };
 
@@ -2034,10 +2062,10 @@ function abrirPodio() {
   if (mc) sel.appendChild(new Option('🏆 ' + mc + ' (geral)', mc));
   eixos.forEach(e => sel.appendChild(new Option(e, e)));
   renderPodio();
-  document.getElementById('modalPodio').classList.add('open');
+  abrirOverlay('modalPodio');
 }
 function fecharPodio() {
-  document.getElementById('modalPodio').classList.remove('open');
+  fecharOverlay('modalPodio');
 }
 function renderPodio() {
   const eixo = document.getElementById('podioEixo').value;
@@ -2339,12 +2367,12 @@ function inicializarStudio() {
 function abrirStudio() {
   if (!dados.length || !grafico) return;
   inicializarStudio();
-  document.getElementById('modalStudio').classList.add('open');
+  abrirOverlay('modalStudio');
   renderStudio();
 }
 
 function fecharStudio() {
-  document.getElementById('modalStudio').classList.remove('open');
+  fecharOverlay('modalStudio');
 }
 
 function toggleStudio(qual) {
@@ -2460,11 +2488,11 @@ function abrirModalLote() {
   document.getElementById('btnZip').textContent = '📥 Baixar ZIP';
   document.getElementById('lblArquivo').textContent = '';
   loteContagem();
-  document.getElementById('modalLote').classList.add('open');
+  abrirOverlay('modalLote');
 }
 
 function fecharModalLote() {
-  document.getElementById('modalLote').classList.remove('open');
+  fecharOverlay('modalLote');
 }
 
 function loteSelecionarTodos(val) {
@@ -2560,11 +2588,11 @@ async function exportarLote() {
 </script>
 
 <!-- MODAL EXPORTAR EM LOTE -->
-<div class="modal-overlay" id="modalLote">
+<div class="modal-overlay" id="modalLote" role="dialog" aria-modal="true" aria-label="Exportar radares em lote">
   <div class="modal">
     <div class="modal-head">
       <h3>📦 Exportar Radares em Lote</h3>
-      <button class="modal-close" onclick="fecharModalLote()" title="Fechar">✕</button>
+      <button class="modal-close" onclick="fecharModalLote()" title="Fechar" aria-label="Fechar">✕</button>
     </div>
     <div class="modal-opts">
       <div>
@@ -2619,11 +2647,11 @@ async function exportarLote() {
 </div>
 
 <!-- MODAL EXPORT STUDIO -->
-<div class="modal-overlay" id="modalStudio">
+<div class="modal-overlay" id="modalStudio" role="dialog" aria-modal="true" aria-label="Estúdio de exportação">
   <div class="modal studio">
     <div class="modal-head studio-head">
       <h3>🎬 Estúdio de Exportação</h3>
-      <button class="modal-close" onclick="fecharStudio()" title="Fechar">✕</button>
+      <button class="modal-close" onclick="fecharStudio()" title="Fechar" aria-label="Fechar">✕</button>
     </div>
 
     <!-- PREVIEW -->
@@ -2753,11 +2781,11 @@ async function exportarLote() {
 </div>
 
 <!-- MODAL PÓDIO -->
-<div class="modal-overlay" id="modalPodio">
+<div class="modal-overlay" id="modalPodio" role="dialog" aria-modal="true" aria-label="Pódio por indicador">
   <div class="modal" style="width:600px;">
     <div class="modal-head">
       <h3>🏅 Pódio por Indicador</h3>
-      <button class="modal-close" onclick="fecharPodio()" title="Fechar">✕</button>
+      <button class="modal-close" onclick="fecharPodio()" title="Fechar" aria-label="Fechar">✕</button>
     </div>
     <div class="modal-opts">
       <div style="flex:1;">
