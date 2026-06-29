@@ -659,6 +659,21 @@
 </main>
 
 <script>
+/* ===========================================================================
+   RADAR DA COPA DA GEOGRAFIA 2026 — índice das seções (procure pelos ─── )
+   ---------------------------------------------------------------------------
+   STATE .................. variáveis globais (dados, eixos, arrays paralelos)
+   PURE-HELPERS ........... funções puras testáveis (histórico, parse, escape)
+   ESTADO POR EIXO ........ imagens/tamanho por eixo + snapshot/commit/desfazer
+   BANDEIRAS / TEMAS ...... cores por país e paletas visuais
+   EMOJI_EIXOS ............ ícone automático por eixo (modo emoji)
+   DATA LOAD .............. conectarPlanilha / carregarArquivo / carregarManual
+   PANEL SETUP ............ configurarPainel / preencherSelects
+   AXIS CONFIG ............ renderAxisList (lista de eixos, arraste, ▲▼, custom)
+   RADAR .................. renderRadar (Chart.js) + plugins de rótulo/imagem
+   SCORE CARDS / PÓDIO .... renderCards / renderPodio
+   EXPORT STUDIO / LOTE ... comporRadarPNG / baixarStudio / exportarLote
+   =========================================================================== */
 // ─── STATE ────────────────────────────────────────────────────
 let dados = [];
 let colunas = [];
@@ -741,6 +756,7 @@ function unicizarNomes(nomes) {
 // ─── ESTADO POR EIXO + HISTÓRICO (desfazer/refazer) ──────────
 let eixosImagens = [];   // dataURL PNG por eixo (ou null)
 let eixosTamanho = [];   // fator de escala por eixo (padrão 1)
+let _ultimoRender = 0;   // timestamp do último renderRadar (anima só renders espaçados)
 const HIST = { lista: [], ptr: -1 };
 function atualizarBotoesHistorico() {
   const u = document.getElementById('btnUndo'), r = document.getElementById('btnRedo');
@@ -1810,12 +1826,18 @@ function renderRadar() {
   const menorDim = Math.min(wrapEl.clientWidth || 400, wrapEl.clientHeight || 400);
   const padChart = Math.max(18, Math.round(menorDim * (labelsCurvos ? 0.12 : 0.06)));
 
+  // Renders em sequência rápida (arraste/sliders) = sem animação (sem engasgo);
+  // renders espaçados (trocar país, abrir) = animação suave.
+  const agora = Date.now();
+  const semAnim = (agora - _ultimoRender) < 450;
+  _ultimoRender = agora;
+
   if (grafico) grafico.destroy();
   grafico = new Chart(ctx, {
     type: 'radar',
     data: { labels: getLabelsExibicao(), datasets },
     options: {
-      animation: { duration: 350 },
+      animation: { duration: semAnim ? 0 : 350 },
       responsive: true, maintainAspectRatio: false,
       layout: { padding: padChart },
       plugins: {
